@@ -1131,7 +1131,10 @@ class MegaBeam {
     draw() {
         if (!this.active) return;
         ctx.save();
-        ctx.translate(this.player.x + 20, this.player.y);
+        ctx.translate(this.player.x, this.player.y);
+        ctx.rotate(this.player.angle);
+        ctx.translate(20, 0); // 少し前へ
+
         const grad = ctx.createLinearGradient(0, -this.height/2, 0, this.height/2);
         grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
         grad.addColorStop(0.2, 'rgba(255, 0, 255, 0.5)');
@@ -1139,6 +1142,7 @@ class MegaBeam {
         grad.addColorStop(0.8, 'rgba(255, 0, 255, 0.5)');
         grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
         ctx.fillStyle = grad;
+        // 横方向に伸ばす
         ctx.fillRect(0, -this.height/2, this.width, this.height);
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, -this.height/4, this.width, this.height/2);
@@ -1183,13 +1187,15 @@ class BossMegaBeam {
             else if (this.timer < 20) this.height -= 7;
             else this.height = this.maxHeight + Math.sin(frameCount * 0.8) * 20;
             
-            this.width = canvas.width;
+            this.width = canvas.width * 1.5;
         }
     }
     draw() {
         if (this.state === 'idle') return;
         ctx.save();
-        ctx.translate(this.boss.x - 70, this.boss.y); 
+        ctx.translate(this.boss.x, this.boss.y);
+        ctx.rotate(this.boss.angle);
+        ctx.translate(70, 0); // 口元へ
 
         if (this.state === 'charging') {
             ctx.fillStyle = `rgba(255, 0, 0, ${Math.random()})`;
@@ -1214,7 +1220,7 @@ class BossMegaBeam {
             grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
 
             ctx.fillStyle = grad;
-            ctx.fillRect(-this.width, -this.height/2, this.width, this.height); 
+            ctx.fillRect(0, -this.height/2, this.width, this.height); 
         }
         ctx.restore();
     }
@@ -1248,7 +1254,7 @@ class Tentacle {
         if(player) {
             targetAngle = Math.atan2(player.y - baseY, player.x - baseX);
         } else {
-            targetAngle = Math.PI; // プレイヤーいなければ左へ
+            targetAngle = Math.PI; 
         }
         
         let px = baseX;
@@ -1324,9 +1330,9 @@ class PowerUp {
         else if (this.type === 'heal') { color = '#0f0'; text = 'H'; }
         else if (this.type === 'funnel') { color = '#0ff'; text = 'F'; }
         else if (this.type === 'mega') { color = '#f0f'; text = 'M'; }
-        else if (this.type === 'speed') { color = '#fff'; text = 'S'; } // Bullet Speed
-        else if (this.type === 'rapid') { color = '#fa0'; text = 'R'; } // Fire Rate
-        else if (this.type === 'move') { color = '#00f'; text = 'A'; } // Agility (Move Speed)
+        else if (this.type === 'speed') { color = '#fff'; text = 'S'; } 
+        else if (this.type === 'rapid') { color = '#fa0'; text = 'R'; } 
+        else if (this.type === 'move') { color = '#00f'; text = 'A'; } 
 
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
@@ -1348,54 +1354,43 @@ class Funnel {
         this.index = index;
         this.x = player.x;
         this.y = player.y;
-        this.distance = 60; // 自機からの基本距離
+        this.distance = 60; 
         
-        // 攻撃用パラメータ
-        this.state = 'idle'; // idle, attack, return
+        this.state = 'idle'; 
         this.target = null;
         this.moveSpeed = 10;
-        this.attackRange = 180; // 敵にこれくらい近づいたら攻撃開始
+        this.attackRange = 180; 
         this.attackTimer = 0;
-        this.maxAttackTime = 120; // 攻撃継続フレーム数
+        this.maxAttackTime = 120; 
         
         this.lastShot = 0;
         this.shootDelay = 15; 
         
-        // 描画用角度
         this.drawAngle = 0;
     }
 
     update(totalFunnels) {
-        // 自機周りの定位置（ホームポジション）を計算
         const baseAngle = frameCount * 0.05;
         const angleOffset = (Math.PI * 2 / totalFunnels) * this.index;
         const homeX = this.player.x + Math.cos(baseAngle + angleOffset) * this.distance;
         const homeY = this.player.y + Math.sin(baseAngle + angleOffset) * this.distance;
 
-        // ターゲットの有効性チェック
         if (this.target && (this.target.markedForDeletion || this.target.hp <= 0)) {
             this.target = null;
             this.state = 'return';
         }
 
-        // 状態遷移ロジック
         if (this.state === 'idle') {
-            // ホームポジションへ吸着
             this.x += (homeX - this.x) * 0.2;
             this.y += (homeY - this.y) * 0.2;
-            
-            // 回転演出
             this.drawAngle = baseAngle * 2;
 
-            // 索敵 (ボス優先、次に雑魚)
-            // 少しランダム性を入れて一斉に行き過ぎないように
             if (Math.random() < 0.1) {
                 if (boss && !boss.markedForDeletion) {
                     this.target = boss;
                     this.state = 'attack';
                     this.attackTimer = 0;
                 } else if (enemies.length > 0) {
-                    // ランダムな敵を狙う
                     const targetIndex = Math.floor(Math.random() * enemies.length);
                     this.target = enemies[targetIndex];
                     this.state = 'attack';
@@ -1405,33 +1400,26 @@ class Funnel {
         } 
         else if (this.state === 'attack') {
             if (this.target) {
-                // ターゲットに向かって移動
                 const dx = this.target.x - this.x;
                 const dy = this.target.y - this.y;
                 const dist = Math.sqrt(dx*dx + dy*dy);
                 
-                // 向きを敵に向ける
                 this.drawAngle = Math.atan2(dy, dx);
                 
-                // 攻撃射程まで接近
                 if (dist > this.attackRange) {
                     this.x += (dx / dist) * this.moveSpeed;
                     this.y += (dy / dist) * this.moveSpeed;
                 } else {
-                    // 射程内なら位置を維持しつつ少し揺らぐ（攻撃中演出）
                     this.x += (Math.random() - 0.5) * 5;
                     this.y += (Math.random() - 0.5) * 5;
                 }
 
-                // 攻撃実行
                 if (frameCount - this.lastShot > this.shootDelay) {
-                    // 敵の方向へ弾を発射
                     const aimAngle = Math.atan2(this.target.y - this.y, this.target.x - this.x);
                     bullets.push(new Bullet(this.x, this.y, aimAngle, 1.5, this.player.bulletSpeedMultiplier));
                     this.lastShot = frameCount;
                 }
 
-                // 攻撃時間制限
                 this.attackTimer++;
                 if (this.attackTimer > this.maxAttackTime) {
                     this.state = 'return';
@@ -1442,18 +1430,15 @@ class Funnel {
             }
         } 
         else if (this.state === 'return') {
-            // 自機へ高速帰還
             const dx = homeX - this.x;
             const dy = homeY - this.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             
-            // 帰還中は進行方向を向く
             this.drawAngle = Math.atan2(dy, dx);
             
             if (dist < 20) {
                 this.state = 'idle';
             } else {
-                // 戻りは速く
                 const returnSpeed = this.moveSpeed * 2.5;
                 this.x += (dx / dist) * returnSpeed;
                 this.y += (dy / dist) * returnSpeed;
@@ -1473,7 +1458,6 @@ class Funnel {
             ctx.shadowBlur = 10;
             ctx.shadowColor = '#0ff';
             ctx.beginPath();
-            // 三角形のような形状にして向きがわかるようにする
             ctx.moveTo(10, 0); 
             ctx.lineTo(-6, 6); 
             ctx.lineTo(-6, -6); 
@@ -1499,7 +1483,6 @@ class InfluenceMap {
         this.grid.fill(0);
     }
 
-    // グリッドに危険度を加算
     addDanger(x, y, value, radiusGrid = 0) {
         const cx = Math.floor(x / this.cellSize);
         const cy = Math.floor(y / this.cellSize);
@@ -1509,13 +1492,11 @@ class InfluenceMap {
                 this.grid[cy * this.cols + cx] += value;
             }
         } else {
-            // 半径指定がある場合は周辺も塗る
             for (let dy = -radiusGrid; dy <= radiusGrid; dy++) {
                 for (let dx = -radiusGrid; dx <= radiusGrid; dx++) {
                     const nx = cx + dx;
                     const ny = cy + dy;
                     if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
-                         // 中心ほど危険度高く
                          const dist = Math.sqrt(dx*dx + dy*dy);
                          if (dist <= radiusGrid) {
                              this.grid[ny * this.cols + nx] += value * (1 - dist / (radiusGrid + 1));
@@ -1526,24 +1507,16 @@ class InfluenceMap {
         }
     }
 
-    // 線分上の危険度を加算 (簡易的)
     addLinearDanger(x, y, vx, vy, steps, value) {
         for(let i = 0; i < steps; i++) {
-            // ステップごとに座標を進める
             const px = x + vx * i;
             const py = y + vy * i;
             this.addDanger(px, py, value);
         }
     }
     
-    // ボーナス（負の危険度）を加算
     addBonus(x, y, value) {
          this.addDanger(x, y, -value);
-    }
-
-    // 線分上にボーナスを加算
-    addBonusLinear(x, y, vx, vy, steps, value) {
-         this.addLinearDanger(x, y, vx, vy, steps, -value);
     }
 
     getDanger(x, y) {
@@ -1552,7 +1525,7 @@ class InfluenceMap {
         if (cx >= 0 && cx < this.cols && cy >= 0 && cy < this.rows) {
             return this.grid[cy * this.cols + cx];
         }
-        return 9999; // 画面外は危険
+        return 9999; 
     }
 }
 
@@ -1562,14 +1535,14 @@ class Player {
         this.height = 20;
         this.x = 50;
         this.y = canvas.height / 2;
+        this.angle = 0; // 自機の向き
         this.speed = 6;
         this.color = '#0ff';
         this.hp = 100;
         this.maxHp = 100;
-        // 連射管理用
         this.fireTimer = 0;
-        this.fireSpeed = 1.0; // パワーアップで増える
-        this.fireThreshold = 8.0; // 閾値（固定）
+        this.fireSpeed = 1.0; 
+        this.fireThreshold = 8.0; 
         
         this.shotLevel = 1;
         this.bulletSpeedMultiplier = 1.0;
@@ -1577,7 +1550,6 @@ class Player {
         this.megaBeam = new MegaBeam(this);
         this.trail = [];
         
-        // Influence Map 初期化 (50pxグリッド)
         this.iMap = new InfluenceMap(canvas.width, canvas.height, 50);
     }
 
@@ -1588,9 +1560,7 @@ class Player {
             this.updateManual();
         }
         
-        // 残像記録 (常に記録)
-        this.trail.push({x: this.x, y: this.y});
-        // 速度が上がると残像も長く残るように調整
+        this.trail.push({x: this.x, y: this.y, angle: this.angle});
         const maxTrail = 10 + Math.floor(this.speed / 2);
         if (this.trail.length > maxTrail) this.trail.shift(); 
 
@@ -1604,6 +1574,7 @@ class Player {
     }
 
     updateManual() {
+        // 移動処理
         if (keys.ArrowUp || keys.w) this.y -= this.speed;
         if (keys.ArrowDown || keys.s) this.y += this.speed;
         if (keys.ArrowLeft || keys.a) this.x -= this.speed;
@@ -1612,120 +1583,111 @@ class Player {
             this.x += (touch.x - this.x) * 0.1;
             this.y += (touch.y - this.y) * 0.1;
         }
+
+        // 自動照準ロジック
+        this.updateAim();
         
         this.shoot();
     }
 
+    updateAim() {
+        let target = null;
+        if (boss && !boss.markedForDeletion) {
+            target = boss;
+        } else {
+            // 最も近い敵を探す
+            let minDist = 9999;
+            for(const e of enemies) {
+                const d = Math.sqrt((e.x - this.x)**2 + (e.y - this.y)**2);
+                if (d < minDist) {
+                    minDist = d;
+                    target = e;
+                }
+            }
+        }
+
+        if (target) {
+            const dx = target.x - this.x;
+            const dy = target.y - this.y;
+            // スムーズに回転させる
+            const targetAngle = Math.atan2(dy, dx);
+            let diff = targetAngle - this.angle;
+            // 角度の正規化 (-PI ~ PI)
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.angle += diff * 0.2; 
+        } else {
+            // 敵がいないときは右を向く (0 rad)
+            let diff = 0 - this.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.angle += diff * 0.1;
+        }
+    }
+
     updateAI() {
-        // --- AIロジック Ver.10.1 (Beam Avoidance Fix) ---
-        
-        // 1. Influence Mapの更新
         this.iMap.clear();
 
-        // 敵弾の危険度マッピング
+        // 敵弾マッピング
         enemyBullets.forEach(b => {
             this.iMap.addDanger(b.x, b.y, 20, 1); 
             this.iMap.addLinearDanger(b.x, b.y, b.vx * 5, b.vy * 5, 4, 10);
         });
 
-        // 敵本体の危険度
+        // 敵本体マッピング
         enemies.forEach(e => {
             if (e.markedForDeletion) return;
-            if (e.type === 'chaser') {
-                this.iMap.addDanger(e.x, e.y, 150, 4); 
-            } else {
-                this.iMap.addDanger(e.x, e.y, 40, 2); 
-            }
+            this.iMap.addDanger(e.x, e.y, 40, 2); 
         });
 
-        // ボスの危険度
-        let targetEnemy = null;
-        let isBossBeaming = false; // ビーム中フラグ
-
+        // ボス警戒
         if (boss) {
-            targetEnemy = boss;
             this.iMap.addDanger(boss.x, boss.y, 100, 4); 
             
-            // ★追加: ボスの正面は常に少し危険（ビーム警戒）
-            // ビーム中でなくても、正面に居座るのはリスクがあるため、弱めの危険度を敷く
-            const beamSafeWidth = Math.ceil(100 / 50); // グリッド単位
-            for(let ix = 0; ix < this.iMap.cols; ix++) {
-                const bx = ix * 50;
-                if (bx < boss.x) {
-                    // 距離に応じてではなく、Y軸の帯状に危険度を設定
-                    // 普段は危険度 1 程度（アイテムより優先度は低いが、安全地帯よりは低い）
-                    this.iMap.addDanger(bx, boss.y, 5, beamSafeWidth); 
-                }
-            }
-
-            // ビーム警戒 (チャージ中も含む！)
+            // ビーム・チャージ中の射線警告
             if (boss.megaBeam.state === 'firing' || boss.megaBeam.state === 'charging') {
-                isBossBeaming = true;
-                const beamHeightGrid = Math.ceil(boss.megaBeam.maxHeight / 50); // 最大太さで警戒
-                // ビーム射線上を完全に危険地帯にする
-                for(let ix = 0; ix < this.iMap.cols; ix++) {
-                    const bx = ix * 50;
-                    // ボスのX座標より左側すべて
-                    if (bx < boss.x) {
-                        // 危険度をさらに上げる (500 -> 9000: 絶対死守ライン)
-                        this.iMap.addDanger(bx, boss.y, 9000, beamHeightGrid + 3); 
-                    }
+                const beamAngle = boss.angle;
+                const maxDist = 2000;
+                const step = 40;
+                const beamGridW = Math.ceil(boss.megaBeam.maxHeight / 50) + 1;
+                
+                for(let d = 0; d < maxDist; d += step) {
+                    const px = boss.x + Math.cos(beamAngle) * d;
+                    const py = boss.y + Math.sin(beamAngle) * d;
+                    this.iMap.addDanger(px, py, 9000, beamGridW);
                 }
             }
             
-            // 触手の危険度
+            // 触手
             if (boss.tentacles) {
                 boss.tentacles.forEach(t => {
                     const head = t.segments[t.numSegments-1];
                     this.iMap.addDanger(head.x, head.y, 80, 2);
                 });
             }
-
-            // ボス戦中は画面右側（敵陣）に行きたがらないようにエリアペナルティ
-            const dangerZoneX = Math.floor(canvas.width * 0.6 / 50);
-            for(let y = 0; y < this.iMap.rows; y++) {
-                for(let x = dangerZoneX; x < this.iMap.cols; x++) {
-                    // 右に行けば行くほど危険
-                    this.iMap.grid[y * this.iMap.cols + x] += (x - dangerZoneX) * 20;
-                }
-            }
-
-        } else if (enemies.length > 0) {
-            let minD = 9999;
-            enemies.forEach(e => {
-                 const d = Math.sqrt((e.x-this.x)**2 + (e.y-this.y)**2);
-                 if(d < minD) { minD = d; targetEnemy = e; }
-            });
         }
-        
-        // 攻撃ポジション評価 (ボーナス付与)
-        // ★修正: ボスがビームを撃とうとしている時は、正面にボーナスを与えない（立ち入らせない）
+
+        // 攻撃ポジション評価
+        let targetEnemy = boss || enemies[0];
         if (targetEnemy) {
-            // ビーム中はボスの正面ボーナスを無効化
-            const skipBonus = (targetEnemy === boss && isBossBeaming);
-
-            if (!skipBonus) {
-                const endGridX = Math.floor(targetEnemy.x / 50);
-                for(let gx = 0; gx < endGridX; gx++) {
-                     const dist = targetEnemy.x - gx * 50;
-                     let bonus = 0;
-                     
-                     // 適正距離 (300-700px)
-                     if (dist > 300 && dist < 700) {
-                         bonus = 20; 
-                         if (this.shotLevel < 3) bonus += 20;
-                     }
-                     
-                     // Y軸ボーナス
-                     if (bonus > 0) this.iMap.addBonus(gx * 50, targetEnemy.y, bonus);
-                }
-            }
+             // 敵との距離を保ちつつ、射線を通せる位置にボーナス
+             // 今回は全方位なので、敵の周囲一定距離にボーナス
+             const optimalDist = 300;
+             // 簡易的に敵の周りにリング状にボーナスを与えるのは重いので
+             // 自分の位置から敵へのベクトル上で適正距離の位置にボーナス
+             const dx = this.x - targetEnemy.x;
+             const dy = this.y - targetEnemy.y;
+             const dist = Math.sqrt(dx*dx + dy*dy);
+             if (dist > 0) {
+                 const tx = targetEnemy.x + (dx/dist) * optimalDist;
+                 const ty = targetEnemy.y + (dy/dist) * optimalDist;
+                 this.iMap.addBonus(tx, ty, 50);
+             }
         }
 
-        // 2. 最適地点探索
+        // 最適地点探索
         const myGridX = Math.floor(this.x / 50);
         const myGridY = Math.floor(this.y / 50);
-        
         let bestScore = 9999;
         let safetyTargetX = this.x;
         let safetyTargetY = this.y;
@@ -1741,7 +1703,6 @@ class Player {
                 let score = this.iMap.grid[idx];
                 const distCost = Math.sqrt(dx*dx + dy*dy);
                 score += distCost * 2; 
-                score -= cx * 0.5;
 
                 if (score < bestScore) {
                     bestScore = score;
@@ -1751,17 +1712,16 @@ class Player {
             }
         }
 
-        // 3. 移動ベクトルの決定
-        const centerSelf = {x: this.x, y: this.y};
+        // 移動ベクトル決定
         let reflexX = 0;
         let reflexY = 0;
         const panicDist = 70; 
-        let dangerFactor = 0; // 緊急度
+        let dangerFactor = 0; 
 
-        // 直近回避
+        // 直近回避 (反射)
         enemyBullets.forEach(b => {
-            const dx = centerSelf.x - b.x;
-            const dy = centerSelf.y - b.y;
+            const dx = this.x - b.x;
+            const dy = this.y - b.y;
             const dist = Math.sqrt(dx*dx + dy*dy);
             if (dist < panicDist) {
                 const force = Math.pow((panicDist - dist) / panicDist, 2) * 80; 
@@ -1770,82 +1730,21 @@ class Player {
                 dangerFactor += force;
             }
         });
-
-        // 敵本体回避
-        enemies.forEach(e => {
-            if (e.markedForDeletion) return;
-            const dx = centerSelf.x - e.x;
-            const dy = centerSelf.y - e.y;
-            const dist = Math.sqrt(dx*dx + dy*dy);
-            const enemyPanicDist = (e.type === 'chaser') ? 120 : panicDist;
-            const power = (e.type === 'chaser') ? 100 : 50;
-
-            if (dist < enemyPanicDist) {
-                const force = Math.pow((enemyPanicDist - dist) / enemyPanicDist, 2) * power;
-                reflexX += (dx / dist) * force; 
-                reflexY += (dy / dist) * force;
-                dangerFactor += force;
-            }
-        });
         
-        // 触手回避
-        if (boss) {
-            boss.tentacles.forEach(t => {
-                const head = t.segments[t.numSegments-1];
-                const dx = centerSelf.x - head.x;
-                const dy = centerSelf.y - head.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                if (dist < 100) {
-                     const force = Math.pow((100 - dist) / 100, 2) * 60;
-                     reflexX += (dx / dist) * force;
-                     reflexY += (dy / dist) * force;
-                     dangerFactor += force;
-                }
-            });
-        }
-        
-        // 2. ボスビーム回避 (Y軸方向へ緊急退避) - 物理反発
-        if (boss && (boss.megaBeam.state === 'firing' || boss.megaBeam.state === 'charging')) {
-             // ビームの太さ + 安全マージン
-             // チャージ中も避ける
-             const dangerY = boss.megaBeam.maxHeight / 2 + 100;
-             if (Math.abs(boss.y - this.y) < dangerY) {
-                 const dir = this.y > boss.y ? 1 : -1;
-                 reflexY += dir * 100; // 強烈な回避力
-                 dangerFactor += 50; 
-             }
-        }
+        // ターゲットへ向く
+        this.updateAim();
 
-        // --- アイテム回収ロジック ---
+        // アイテム回収
         let planX = (safetyTargetX - this.x);
         let planY = (safetyTargetY - this.y);
-        let planWeight = 0.15;
+        let planWeight = 0.2;
 
         let bestItem = null;
         let maxItemScore = -1;
-        
         powerUps.forEach(p => {
-             if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) return;
-
              const d = Math.sqrt((p.x - this.x)**2 + (p.y - this.y)**2);
              const itemDanger = this.iMap.getDanger(p.x, p.y);
-             
-             let value = 0;
-             if (p.type === 'mega') value = 10000; 
-             else if (p.type === 'heal') {
-                 const hpLost = this.maxHp - this.hp;
-                 value = hpLost * 100; 
-                 if (this.hp < this.maxHp * 0.3) value += 5000; 
-             }
-             else if (['power','funnel','speed','rapid','move'].includes(p.type)) value = 2000;
-
-             value -= d * 2;
-             
-             let riskTolerance = (p.type === 'mega') ? 200 : 50;
-             if (itemDanger > riskTolerance) {
-                 value -= (itemDanger - riskTolerance) * 100;
-             }
-
+             let value = 3000 - d * 2 - itemDanger * 100;
              if (value > maxItemScore && value > 0) {
                  maxItemScore = value;
                  bestItem = p;
@@ -1855,54 +1754,9 @@ class Player {
         if (bestItem) {
              const dx = bestItem.x - this.x;
              const dy = bestItem.y - this.y;
-             const pullStrength = 8.0; 
-             planX = dx * pullStrength;
-             planY = dy * pullStrength;
-             planWeight = 0.3; 
-        } else {
-             // 敵ターゲットへの距離維持 (Y軸合わせ強化)
-             if (targetEnemy && !isBossBeaming) { // ビーム中はY軸合わせしない
-                 // Y軸は合わせる
-                 const yDiff = targetEnemy.y - this.y;
-                 if (Math.abs(yDiff) > 10) {
-                     planY += yDiff * 0.1; // 誘導強化
-                 }
-                 
-                 const idealX = Math.max(100, targetEnemy.x - 450);
-                 planX += (idealX - this.x) * 0.05;
-             }
-        }
-        
-        // --- メガ粒子砲発動中の特別動作 ---
-        if (this.megaBeam.active) {
-            if (boss) {
-                if (isBossBeaming) {
-                     planWeight = 0.0; 
-                } else {
-                    const yDiff = boss.y - this.y;
-                    
-                    // ★変更: 完全に一致させようとせず、ある程度アバウトに追尾
-                    // Y軸の差が小さい場合は、無理に合わせない（微調整のみ）
-                    if (Math.abs(yDiff) < 50) {
-                        planY = yDiff * 0.5; // 弱める
-                    } else {
-                        planY = yDiff * 3.0; // 以前より少し弱める (5.0 -> 3.0)
-                    }
-
-                    const idealX = Math.max(100, boss.x - 400);
-                    planX = (idealX - this.x) * 2.0;
-                    
-                    // ★変更: 回避優先度を上げるためにWeightを下げる
-                    planWeight = 0.5; // 0.8 -> 0.5
-                }
-            } else {
-                const sweepSpeed = 0.05;
-                const sweepAmp = canvas.height * 0.35; 
-                const targetSweepY = (canvas.height / 2) + Math.sin(frameCount * sweepSpeed) * sweepAmp;
-                planY = (targetSweepY - this.y) * 2.0; 
-                planX = (200 - this.x) * 1.0;
-                planWeight = 0.9; 
-            }
+             planX = dx * 8.0;
+             planY = dy * 8.0;
+             planWeight = 0.4; 
         }
 
         // ベクトル合成
@@ -1911,9 +1765,7 @@ class Player {
 
         // 速度制限
         let maxSpeed = this.speed * 1.5; 
-        if (dangerFactor > 10) {
-            maxSpeed = this.speed * 3.5;
-        }
+        if (dangerFactor > 10) maxSpeed = this.speed * 3.5;
 
         const len = Math.sqrt(finalX*finalX + finalY*finalY);
         if (len > 0) {
@@ -1923,31 +1775,28 @@ class Player {
         }
 
         this.shoot();
-        this.trail.push({x: this.x, y: this.y});
-        // AI操作時も残像を記録
-        const maxTrail = 10 + Math.floor(this.speed / 2);
-        if (this.trail.length > maxTrail) this.trail.shift(); 
     }
 
     shoot() {
-        // 蓄積型の発射システムで無制限連射を実現
         this.fireTimer += this.fireSpeed;
         
         while (this.fireTimer >= this.fireThreshold) {
             this.fireTimer -= this.fireThreshold;
             
-            // 実際の発射処理
-            const centerX = this.x + this.width/2;
-            const baseDamage = 1; 
+            // プレイヤーの向きに合わせて発射
+            const baseAngle = this.angle;
             const bulletsPerCircle = 24;
-            const angleStep = Math.PI / 12; // 15度
+            const angleStep = Math.PI / 12; 
 
             if (this.shotLevel === 1) {
-                bullets.push(new Bullet(centerX, this.y, 0, baseDamage, this.bulletSpeedMultiplier));
+                bullets.push(new Bullet(this.x, this.y, baseAngle, 1, this.bulletSpeedMultiplier));
             } 
             else if (this.shotLevel === 2) {
-                bullets.push(new Bullet(centerX, this.y - 8, 0, baseDamage, this.bulletSpeedMultiplier));
-                bullets.push(new Bullet(centerX, this.y + 8, 0, baseDamage, this.bulletSpeedMultiplier));
+                // 平行発射 (回転座標系で計算)
+                const offX = Math.sin(baseAngle) * 8;
+                const offY = -Math.cos(baseAngle) * 8;
+                bullets.push(new Bullet(this.x + offX, this.y + offY, baseAngle, 1, this.bulletSpeedMultiplier));
+                bullets.push(new Bullet(this.x - offX, this.y - offY, baseAngle, 1, this.bulletSpeedMultiplier));
             } 
             else {
                 const count = this.shotLevel;
@@ -1956,16 +1805,14 @@ class Player {
 
                 for (let c = 0; c < fullCircles; c++) {
                     for (let i = 0; i < bulletsPerCircle; i++) {
-                        const angle = i * angleStep;
-                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage, this.bulletSpeedMultiplier));
+                        bullets.push(new Bullet(this.x, this.y, baseAngle + i * angleStep, 1, this.bulletSpeedMultiplier));
                     }
                 }
 
                 if (remainder > 0) {
                     const startAngle = -((remainder - 1) * angleStep) / 2;
                     for (let i = 0; i < remainder; i++) {
-                        const angle = startAngle + i * angleStep;
-                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage, this.bulletSpeedMultiplier));
+                        bullets.push(new Bullet(this.x, this.y, baseAngle + startAngle + i * angleStep, 1, this.bulletSpeedMultiplier));
                     }
                 }
             }
@@ -1992,15 +1839,12 @@ class Player {
             this.megaBeam.activate();
             createFloatingText(this.x, this.y - 20, "MEGA BEAM!", '#f0f');
         } else if (type === 'speed') {
-            // 弾速アップ (無制限)
             this.bulletSpeedMultiplier += 0.5;
             createFloatingText(this.x, this.y - 20, "BULLET SPEED++", '#fff');
         } else if (type === 'rapid') {
-            // 連射速度アップ (無制限)
             this.fireSpeed += 0.5;
             createFloatingText(this.x, this.y - 20, "RAPID FIRE++", '#fa0');
         } else if (type === 'move') {
-            // 移動速度アップ (無制限)
             this.speed += 1.5;
             createFloatingText(this.x, this.y - 20, "AGILITY UP!", '#00f');
         }
@@ -2008,15 +1852,13 @@ class Player {
     draw() {
         ctx.save();
         
-        // 残像描画 (軽量版: 透明度を変えて描画するだけ)
         if (this.trail.length > 0) {
-            // 古いものほど薄く
             this.trail.forEach((pos, index) => {
                 const ratio = (index + 1) / this.trail.length;
-                ctx.globalAlpha = ratio * 0.3; // 最大30%の濃さ
-                
+                ctx.globalAlpha = ratio * 0.3; 
                 ctx.save();
                 ctx.translate(pos.x, pos.y);
+                ctx.rotate(pos.angle); // 残像もその時の向きで
                 
                 if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
                     drawImageAspect(ctx, assets.images.player, 50, 40);
@@ -2034,9 +1876,11 @@ class Player {
         }
 
         this.funnels.forEach(f => f.draw());
+        // メガビームは回転対応済みdraw内で描画
         this.megaBeam.draw(); 
 
         ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle); // 自機回転
         
         if (isAutoPilot) {
             ctx.shadowColor = '#f00';
@@ -2276,11 +2120,12 @@ class Boss {
         this.height = 150;
         this.x = canvas.width + 200;
         this.y = canvas.height / 2;
-        this.targetX = canvas.width - 250;
+        this.targetX = canvas.width / 2; // 画面中央まで来る
         this.hp = 2000 + (bossEncountered * 1000);
         this.maxHp = this.hp;
         this.state = 'enter';
         this.dy = 2;
+        this.angle = Math.PI; // 初期は左向き
         this.timer = 0;
         this.attackTimer = 0;
         this.markedForDeletion = false;
@@ -2320,6 +2165,18 @@ class Boss {
             playSound('sePowerup'); // 覚醒音
             createExplosion(this.x, this.y, 50, '#f00');
         }
+        
+        // 常にプレイヤーを向く
+        if (player) {
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const targetAngle = Math.atan2(dy, dx);
+            // スムーズ回転
+            let diff = targetAngle - this.angle;
+            while (diff > Math.PI) diff -= Math.PI * 2;
+            while (diff < -Math.PI) diff += Math.PI * 2;
+            this.angle += diff * 0.05;
+        }
 
         if (this.state === 'enter') {
             this.x -= 2;
@@ -2328,6 +2185,9 @@ class Boss {
             // 覚醒時は移動速度アップ
             const moveSpeed = this.awakened ? this.dy * 1.5 : this.dy;
             this.y += moveSpeed;
+            
+            // 少し左右にも動く
+            this.x += Math.sin(frameCount * 0.02) * (this.awakened ? 2 : 1);
             
             if (this.y < 100 || this.y > canvas.height - 100) this.dy *= -1;
 
@@ -2339,15 +2199,16 @@ class Boss {
             if (this.attackTimer % Math.floor(Math.max(60, 120 - bossEncountered * 10) * speedMod) === 0) {
                  const count = 12 + bossEncountered * 2;
                  for(let i=0; i<count; i++) {
-                     enemyBullets.push(new EnemyBullet(this.x, this.y, (Math.PI*2/count)*i));
+                     // 自分の向きを基準に全方位弾
+                     enemyBullets.push(new EnemyBullet(this.x, this.y, this.angle + (Math.PI*2/count)*i));
                  }
             }
             
             if (this.attackTimer % Math.floor(Math.max(40, 90 - bossEncountered * 5) * speedMod) === 0) {
-                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                 // プレイヤー方向へバースト（角度はthis.angleを使う）
                  const bursts = 3 + Math.floor(bossEncountered / 2);
                  for(let i=0; i<bursts; i++) {
-                    setTimeout(() => enemyBullets.push(new EnemyBullet(this.x, this.y, angle)), i * 100 * speedMod);
+                    setTimeout(() => enemyBullets.push(new EnemyBullet(this.x, this.y, this.angle)), i * 100 * speedMod);
                  }
             }
 
@@ -2363,8 +2224,6 @@ class Boss {
                     createFloatingText(this.x, this.y - 100, "CAUTION!!", '#f00');
                 }
             }
-            
-            // シールド回復ロジックを削除 (回復なし)
         }
         
         const hpBar = document.getElementById('boss-hp-bar');
@@ -2413,6 +2272,8 @@ class Boss {
         }
         
         ctx.translate(this.x, this.y);
+        // ボスの回転
+        ctx.rotate(this.angle);
 
         // 覚醒エフェクト (赤く明滅)
         if (this.awakened) {
@@ -2470,6 +2331,8 @@ class Boss {
             if (this.awakened) {
                 ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(3)'; 
             }
+            // 画像の向き補正：元画像が左向きなら Math.PI を足すなど必要だが、とりあえずそのまま
+            // 0ラジアン（右）を向いていると仮定して描画
             drawImageAspect(ctx, assets.images.boss, 150, 150);
             ctx.filter = 'none'; // リセット
         } else {
@@ -2482,8 +2345,13 @@ class Boss {
                 ctx.shadowColor = '#f00';
             }
 
+            // ボス本体の描画（向きがわかるように形状変更）
             ctx.beginPath();
-            ctx.moveTo(70, 0); ctx.lineTo(-50, 70); ctx.lineTo(-70, 40); ctx.lineTo(-70, -40); ctx.lineTo(-50, -70);
+            // 右向きの矢印っぽい形状
+            ctx.moveTo(70, 0); 
+            ctx.lineTo(-50, 70); 
+            ctx.lineTo(-30, 0); // くぼみ
+            ctx.lineTo(-50, -70);
             ctx.closePath();
             ctx.fill(); ctx.stroke();
 
@@ -2592,39 +2460,59 @@ function checkCollision(rect1, rect2) {
 function checkBeamCollision(beam, target) {
     // 修正: BossMegaBeamの場合はstateを確認、Playerの場合はactiveを確認
     const isActive = (beam instanceof BossMegaBeam) ? (beam.state === 'firing') : beam.active;
-    
     if (!isActive || !target) return false;
     
-    let beamY, beamLeft, beamTop, beamBottom;
-    if (beam instanceof BossMegaBeam) {
-        beamY = beam.boss.y;
-        beamLeft = 0; 
-        const beamRight = beam.boss.x - 70;
-        beamTop = beamY - beam.height/2;
-        beamBottom = beamY + beam.height/2;
-        
-        const tTop = target.y - (target.height/2);
-        const tBottom = target.y + (target.height/2);
-        const tRight = target.x + (target.width/2);
-        
-        if (tRight > beamLeft && target.x - target.width/2 < beamRight && tBottom > beamTop && tTop < beamBottom) {
-            return true;
-        }
-    } else {
-        beamY = beam.player.y;
-        beamTop = beamY - beam.height/2;
-        beamBottom = beamY + beam.height/2;
-        beamLeft = beam.player.x + 20;
-        
-        const tTop = target.y - (target.height/2);
-        const tBottom = target.y + (target.height/2);
-        const tLeft = target.x - (target.width/2);
-        
-        if (tLeft + target.width > beamLeft && tBottom > beamTop && tTop < beamBottom) {
-            return true;
-        }
-    }
-    return false;
+    // ビームの持ち主と角度を取得
+    const owner = (beam instanceof BossMegaBeam) ? beam.boss : beam.player;
+    // プレイヤーもボスも .angle を持つようになった
+    const angle = owner.angle || 0; 
+
+    // ビームのパラメータ
+    // 長さは画面の対角線以上あれば十分
+    const beamLen = canvas.width * 1.5; 
+    const beamHalfWidth = beam.height / 2; // heightが太さ
+
+    // ビーム始点（機体中心から少しずらす場合はここで調整）
+    const startX = owner.x;
+    const startY = owner.y;
+
+    // ターゲット（円と仮定）
+    const tX = target.x;
+    const tY = target.y;
+    const tRadius = (target.width || 30) / 2; // 半径
+
+    // --- 回転した矩形（線分）と円の衝突判定 ---
+    
+    // ターゲットの座標を、ビーム始点を原点とし、ビームの角度だけ逆回転させた座標系に変換する
+    // これにより、ビームはX軸上の矩形として扱える
+    const dx = tX - startX;
+    const dy = tY - startY;
+    
+    // 逆回転
+    const localX = dx * Math.cos(-angle) - dy * Math.sin(-angle);
+    const localY = dx * Math.sin(-angle) + dy * Math.cos(-angle);
+
+    // ビームの矩形範囲（ローカル座標系）
+    // X: 0 から beamLen
+    // Y: -beamHalfWidth から +beamHalfWidth
+    
+    // 最近接点を求める
+    let closestX, closestY;
+
+    if (localX < 0) closestX = 0;
+    else if (localX > beamLen) closestX = beamLen;
+    else closestX = localX;
+
+    if (localY < -beamHalfWidth) closestY = -beamHalfWidth;
+    else if (localY > beamHalfWidth) closestY = beamHalfWidth;
+    else closestY = localY;
+
+    // ターゲット中心と最近接点の距離
+    const distX = localX - closestX;
+    const distY = localY - closestY;
+    const distanceSquared = distX * distX + distY * distY;
+
+    return distanceSquared < (tRadius * tRadius);
 }
 
 // 変数
