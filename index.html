@@ -1646,6 +1646,18 @@ class Player {
             targetEnemy = boss;
             this.iMap.addDanger(boss.x, boss.y, 100, 4); 
             
+            // ★追加: ボスの正面は常に少し危険（ビーム警戒）
+            // ビーム中でなくても、正面に居座るのはリスクがあるため、弱めの危険度を敷く
+            const beamSafeWidth = Math.ceil(100 / 50); // グリッド単位
+            for(let ix = 0; ix < this.iMap.cols; ix++) {
+                const bx = ix * 50;
+                if (bx < boss.x) {
+                    // 距離に応じてではなく、Y軸の帯状に危険度を設定
+                    // 普段は危険度 1 程度（アイテムより優先度は低いが、安全地帯よりは低い）
+                    this.iMap.addDanger(bx, boss.y, 5, beamSafeWidth); 
+                }
+            }
+
             // ビーム警戒 (チャージ中も含む！)
             if (boss.megaBeam.state === 'firing' || boss.megaBeam.state === 'charging') {
                 isBossBeaming = true;
@@ -1861,14 +1873,28 @@ class Player {
              }
         }
         
-        // --- メガ粒子砲発動中の特別動作 (Ver.9.1: Beam Tactician) ---
+        // --- メガ粒子砲発動中の特別動作 ---
         if (this.megaBeam.active) {
             if (boss) {
-                const yDiff = boss.y - this.y;
-                planY = yDiff * 5.0; 
-                const idealX = Math.max(100, boss.x - 400);
-                planX = (idealX - this.x) * 2.0;
-                planWeight = 0.8; 
+                if (isBossBeaming) {
+                     planWeight = 0.0; 
+                } else {
+                    const yDiff = boss.y - this.y;
+                    
+                    // ★変更: 完全に一致させようとせず、ある程度アバウトに追尾
+                    // Y軸の差が小さい場合は、無理に合わせない（微調整のみ）
+                    if (Math.abs(yDiff) < 50) {
+                        planY = yDiff * 0.5; // 弱める
+                    } else {
+                        planY = yDiff * 3.0; // 以前より少し弱める (5.0 -> 3.0)
+                    }
+
+                    const idealX = Math.max(100, boss.x - 400);
+                    planX = (idealX - this.x) * 2.0;
+                    
+                    // ★変更: 回避優先度を上げるためにWeightを下げる
+                    planWeight = 0.5; // 0.8 -> 0.5
+                }
             } else {
                 const sweepSpeed = 0.05;
                 const sweepAmp = canvas.height * 0.35; 
