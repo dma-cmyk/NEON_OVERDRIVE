@@ -72,6 +72,8 @@
             border-radius: 5px;
             font-weight: bold;
             outline: none;
+            /* タッチターゲットを確保 */
+            min-height: 44px;
         }
         #auto-pilot-btn.active {
             border-color: #f00;
@@ -310,6 +312,7 @@
             transition: all 0.3s;
             font-family: inherit;
             margin: 10px;
+            touch-action: manipulation;
         }
         button:hover {
             background: #f0f;
@@ -978,10 +981,14 @@ function toggleAutoPilot() {
     }
 }
 
-autoPilotBtn.addEventListener('click', () => {
+// クリックとタッチの両方に対応
+autoPilotBtn.addEventListener('click', (e) => {
     toggleAutoPilot();
     autoPilotBtn.blur(); 
 });
+autoPilotBtn.addEventListener('touchstart', (e) => {
+    e.stopPropagation(); // windowのtouchstartを伝播させない
+}, {passive: true});
 
 const keys = {
     ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
@@ -1001,11 +1008,18 @@ window.addEventListener('keyup', e => {
 
 const touch = { active: false, x: 0, y: 0 };
 window.addEventListener('touchstart', e => {
+    // ボタンや入力要素などのUIパーツを触っている場合はゲーム操作の妨害をしない
+    const target = e.target;
+    if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.closest('button')) {
+        return;
+    }
+
     touch.active = true;
     touch.x = e.touches[0].clientX;
     touch.y = e.touches[0].clientY;
     if(gameState === 'playing' && !isAutoPilot) e.preventDefault();
 }, {passive: false});
+
 window.addEventListener('touchmove', e => {
     if (touch.active) {
         touch.x = e.touches[0].clientX;
