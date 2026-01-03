@@ -1346,16 +1346,18 @@ class Funnel {
     constructor(player, index) {
         this.player = player;
         this.index = index;
-        this.angle = 0;
+        // this.angle = 0; // 削除またはコメントアウト
         this.distance = 60; 
         this.lastShot = 0;
         this.shootDelay = 40; 
     }
     update(totalFunnels) {
-        this.angle += 0.05;
+        // 共通の回転角を使用することで等間隔を保つ
+        const baseAngle = frameCount * 0.05;
         const angleOffset = (Math.PI * 2 / totalFunnels) * this.index;
-        this.x = this.player.x + Math.cos(this.angle + angleOffset) * this.distance;
-        this.y = this.player.y + Math.sin(this.angle + angleOffset) * this.distance;
+        
+        this.x = this.player.x + Math.cos(baseAngle + angleOffset) * this.distance;
+        this.y = this.player.y + Math.sin(baseAngle + angleOffset) * this.distance;
 
         // ファンネルも本体の弾速影響を受ける
         if (frameCount - this.lastShot > this.shootDelay) {
@@ -1366,7 +1368,10 @@ class Funnel {
     draw() {
         ctx.save();
         ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle * 2); 
+        
+        // 自転も共通の角度で行う
+        const baseAngle = frameCount * 0.05;
+        ctx.rotate(baseAngle * 2); 
 
         if (assets.images.funnel && assets.images.funnel.complete && assets.images.funnel.naturalWidth !== 0) {
             drawImageAspect(ctx, assets.images.funnel, 20, 20);
