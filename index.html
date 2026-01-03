@@ -1315,6 +1315,9 @@ class PowerUp {
         else if (this.type === 'heal') { color = '#0f0'; text = 'H'; }
         else if (this.type === 'funnel') { color = '#0ff'; text = 'F'; }
         else if (this.type === 'mega') { color = '#f0f'; text = 'M'; }
+        else if (this.type === 'speed') { color = '#fff'; text = 'S'; } // Bullet Speed
+        else if (this.type === 'rapid') { color = '#fa0'; text = 'R'; } // Fire Rate
+        else if (this.type === 'move') { color = '#00f'; text = 'A'; } // Agility (Move Speed)
 
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
@@ -1345,8 +1348,9 @@ class Funnel {
         this.x = this.player.x + Math.cos(this.angle + angleOffset) * this.distance;
         this.y = this.player.y + Math.sin(this.angle + angleOffset) * this.distance;
 
+        // ファンネルも本体の弾速影響を受ける
         if (frameCount - this.lastShot > this.shootDelay) {
-            bullets.push(new Bullet(this.x, this.y, 0, 1.5)); 
+            bullets.push(new Bullet(this.x, this.y, 0, 1.5, this.player.bulletSpeedMultiplier)); 
             this.lastShot = frameCount;
         }
     }
@@ -1452,9 +1456,13 @@ class Player {
         this.color = '#0ff';
         this.hp = 100;
         this.maxHp = 100;
-        this.lastShot = 0;
-        this.shootDelay = 8;
+        // 連射管理用
+        this.fireTimer = 0;
+        this.fireSpeed = 1.0; // パワーアップで増える
+        this.fireThreshold = 8.0; // 閾値（固定）
+        
         this.shotLevel = 1;
+        this.bulletSpeedMultiplier = 1.0;
         this.funnels = [];
         this.megaBeam = new MegaBeam(this);
         this.trail = [];
@@ -1466,12 +1474,15 @@ class Player {
     update() {
         if (isAutoPilot) {
             this.updateAI();
-             this.trail.push({x: this.x, y: this.y});
-             if (this.trail.length > 8) this.trail.shift(); 
         } else {
             this.updateManual();
-             this.trail = [];
         }
+        
+        // 残像記録 (常に記録)
+        this.trail.push({x: this.x, y: this.y});
+        // 速度が上がると残像も長く残るように調整
+        const maxTrail = 10 + Math.floor(this.speed / 2);
+        if (this.trail.length > maxTrail) this.trail.shift(); 
 
         this.funnels.forEach(f => f.update(this.funnels.length));
         this.megaBeam.update();
@@ -1703,7 +1714,7 @@ class Player {
                  value = hpLost * 100; 
                  if (this.hp < this.maxHp * 0.3) value += 5000; 
              }
-             else if (p.type === 'power' || p.type === 'funnel') value = 2000;
+             else if (['power','funnel','speed','rapid','move'].includes(p.type)) value = 2000;
 
              value -= d * 2;
              
@@ -1776,57 +1787,55 @@ class Player {
 
         this.shoot();
         this.trail.push({x: this.x, y: this.y});
-        if (this.trail.length > 8) this.trail.shift(); 
+        // AI操作時も残像を記録
+        const maxTrail = 10 + Math.floor(this.speed / 2);
+        if (this.trail.length > maxTrail) this.trail.shift(); 
     }
 
     shoot() {
-        if (frameCount - this.lastShot > this.shootDelay) {
-            const centerX = this.x + this.width/2;
+        // 蓄積型の発射システムで無制限連射を実現
+        this.fireTimer += this.fireSpeed;
+        
+        while (this.fireTimer >= this.fireThreshold) {
+            this.fireTimer -= this.fireThreshold;
             
-            // 基本ダメージ
+            // 実際の発射処理
+            const centerX = this.x + this.width/2;
             const baseDamage = 1; 
-
-            // 1周に必要な弾数 (15度刻み = 24発で360度)
             const bulletsPerCircle = 24;
             const angleStep = Math.PI / 12; // 15度
 
-            // Lv1: シングル
             if (this.shotLevel === 1) {
-                bullets.push(new Bullet(centerX, this.y, 0, baseDamage));
+                bullets.push(new Bullet(centerX, this.y, 0, baseDamage, this.bulletSpeedMultiplier));
             } 
-            // Lv2: ダブル (平行)
             else if (this.shotLevel === 2) {
-                bullets.push(new Bullet(centerX, this.y - 8, 0, baseDamage));
-                bullets.push(new Bullet(centerX, this.y + 8, 0, baseDamage));
+                bullets.push(new Bullet(centerX, this.y - 8, 0, baseDamage, this.bulletSpeedMultiplier));
+                bullets.push(new Bullet(centerX, this.y + 8, 0, baseDamage, this.bulletSpeedMultiplier));
             } 
-            // Lv3以降: 多重展開
             else {
                 const count = this.shotLevel;
                 const fullCircles = Math.floor(count / bulletsPerCircle);
                 const remainder = count % bulletsPerCircle;
 
-                // 1. 全方位弾幕
                 for (let c = 0; c < fullCircles; c++) {
                     for (let i = 0; i < bulletsPerCircle; i++) {
                         const angle = i * angleStep;
-                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage));
+                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage, this.bulletSpeedMultiplier));
                     }
                 }
 
-                // 2. 扇状弾幕 (余り分)
                 if (remainder > 0) {
                     const startAngle = -((remainder - 1) * angleStep) / 2;
                     for (let i = 0; i < remainder; i++) {
                         const angle = startAngle + i * angleStep;
-                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage));
+                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage, this.bulletSpeedMultiplier));
                     }
                 }
             }
-            
             playSound('seShoot');
-            this.lastShot = frameCount;
         }
     }
+    
     applyPowerUp(type) {
         playSound('sePowerup'); 
 
@@ -1845,22 +1854,37 @@ class Player {
         } else if (type === 'mega') {
             this.megaBeam.activate();
             createFloatingText(this.x, this.y - 20, "MEGA BEAM!", '#f0f');
+        } else if (type === 'speed') {
+            // 弾速アップ (無制限)
+            this.bulletSpeedMultiplier += 0.5;
+            createFloatingText(this.x, this.y - 20, "BULLET SPEED++", '#fff');
+        } else if (type === 'rapid') {
+            // 連射速度アップ (無制限)
+            this.fireSpeed += 0.5;
+            createFloatingText(this.x, this.y - 20, "RAPID FIRE++", '#fa0');
+        } else if (type === 'move') {
+            // 移動速度アップ (無制限)
+            this.speed += 1.5;
+            createFloatingText(this.x, this.y - 20, "AGILITY UP!", '#00f');
         }
     }
     draw() {
         ctx.save();
         
-        if (isAutoPilot && this.trail.length > 0) {
+        // 残像描画 (軽量版: 透明度を変えて描画するだけ)
+        if (this.trail.length > 0) {
+            // 古いものほど薄く
             this.trail.forEach((pos, index) => {
                 const ratio = (index + 1) / this.trail.length;
-                ctx.globalAlpha = ratio * 0.4; 
+                ctx.globalAlpha = ratio * 0.3; // 最大30%の濃さ
+                
                 ctx.save();
                 ctx.translate(pos.x, pos.y);
+                
                 if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
-                    // フィルター削除
                     ctx.drawImage(assets.images.player, -25, -20, 50, 40);
                 } else {
-                     ctx.strokeStyle = '#f00';
+                     ctx.strokeStyle = this.color;
                      ctx.lineWidth = 2;
                      ctx.beginPath();
                      ctx.moveTo(20, 0); ctx.lineTo(-15, 10); ctx.lineTo(-10, 0); ctx.lineTo(-15, -10);
@@ -1883,7 +1907,6 @@ class Player {
         }
         
         if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
-            // フィルター削除
             ctx.drawImage(assets.images.player, -25, -20, 50, 40);
             
             ctx.lineWidth = 1;
@@ -1946,11 +1969,11 @@ class Player {
 }
 
 class Bullet {
-    constructor(x, y, angle, damage) {
+    constructor(x, y, angle, damage, speedMultiplier = 1.0) {
         this.x = x;
         this.y = y;
         this.damage = damage;
-        this.speed = 12;
+        this.speed = 12 * speedMultiplier;
         this.vx = Math.cos(angle) * this.speed;
         this.vy = Math.sin(angle) * this.speed;
         if (damage > 5) { this.radius = 6; this.color = '#fff'; }
@@ -2660,6 +2683,7 @@ function animate() {
             powerUps.push(new PowerUp(canvas.width/2, canvas.height/2, 'power'));
             powerUps.push(new PowerUp(canvas.width/2 + 50, canvas.height/2, 'heal'));
             powerUps.push(new PowerUp(canvas.width/2 - 50, canvas.height/2, 'funnel'));
+            powerUps.push(new PowerUp(canvas.width/2 + 25, canvas.height/2 + 25, 'speed')); // ボス撃破で確定ドロップ
             if (Math.random() < 0.5) powerUps.push(new PowerUp(canvas.width/2 + 100, canvas.height/2, 'mega'));
         }
 
@@ -2687,6 +2711,9 @@ function animate() {
             if (p.type === 'power') explosionColor = '#ff0';
             else if (p.type === 'funnel') explosionColor = '#0ff';
             else if (p.type === 'mega') explosionColor = '#f0f';
+            else if (p.type === 'speed') explosionColor = '#fff';
+            else if (p.type === 'rapid') explosionColor = '#fa0';
+            else if (p.type === 'move') explosionColor = '#00f';
             
             createExplosion(p.x, p.y, 10, explosionColor);
             p.markedForDeletion = true;
@@ -2725,7 +2752,10 @@ function animate() {
                 let type = 'power';
                 if (r < 0.3) type = 'heal';
                 else if (r < 0.5) type = 'funnel';
-                else if (r < 0.6) type = 'mega'; 
+                else if (r < 0.6) type = 'mega';
+                else if (r < 0.7) type = 'speed'; 
+                else if (r < 0.8) type = 'rapid';
+                else if (r < 0.9) type = 'move';
                 powerUps.push(new PowerUp(enemy.x, enemy.y, type));
              }
         }
