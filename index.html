@@ -1,0 +1,2748 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>NEON OVERDRIVE</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            touch-action: none;
+        }
+        canvas {
+            display: block;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+            z-index: 5;
+        }
+        #top-ui {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            align-items: flex-start;
+            position: relative;
+        }
+        #score-board {
+            font-size: 24px;
+            font-weight: bold;
+            color: #0ff;
+            text-shadow: 0 0 10px #0ff;
+            width: 200px;
+        }
+        #timer-display {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff0;
+            text-shadow: 0 0 10px #ff0;
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            top: 0;
+        }
+        /* オートパイロットボタン */
+        #auto-pilot-container {
+            pointer-events: auto;
+            width: 200px;
+            text-align: right;
+        }
+        #auto-pilot-btn {
+            background: rgba(0, 0, 0, 0.5);
+            border: 2px solid #555;
+            color: #555;
+            padding: 5px 15px;
+            font-family: inherit;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-radius: 5px;
+            font-weight: bold;
+            outline: none;
+        }
+        #auto-pilot-btn.active {
+            border-color: #f00;
+            color: #f00;
+            box-shadow: 0 0 15px #f00;
+            background: rgba(50, 0, 0, 0.8);
+            animation: blink-border 1s infinite;
+        }
+        @keyframes blink-border {
+            0%, 100% { border-color: #f00; box-shadow: 0 0 15px #f00; }
+            50% { border-color: #500; box-shadow: 0 0 5px #500; }
+        }
+
+        #health-bar-container {
+            width: 200px;
+            height: 20px;
+            border: 2px solid #f0f;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+        #health-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #f0f;
+            box-shadow: 0 0 10px #f0f;
+            transition: width 0.2s;
+        }
+        #level-indicator {
+            font-size: 16px;
+            color: #ff0;
+            text-shadow: 0 0 5px #ff0;
+        }
+        #boss-hp-container {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60%;
+            height: 30px;
+            border: 2px solid #f00;
+            border-radius: 5px;
+            overflow: hidden;
+            display: none;
+        }
+        #boss-hp-bar {
+            width: 100%;
+            height: 100%;
+            background-color: #f00;
+            box-shadow: 0 0 15px #f00;
+            transition: width 0.1s;
+        }
+        #boss-shield-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0%;
+            height: 100%;
+            background-color: #0ff;
+            opacity: 0.7;
+            transition: width 0.1s;
+        }
+
+        #warning-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 80px;
+            color: #f00;
+            font-weight: bold;
+            text-shadow: 0 0 20px #f00;
+            display: none;
+            animation: blink 0.5s infinite;
+            text-align: center;
+            z-index: 20;
+        }
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        
+        /* EXAMシステム演出 */
+        #exam-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            background: radial-gradient(circle, transparent 60%, rgba(255, 0, 0, 0.4) 100%);
+            box-shadow: inset 0 0 50px #f00;
+            mix-blend-mode: overlay;
+            animation: pulse-red 0.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { opacity: 0.3; }
+            50% { opacity: 0.8; }
+            100% { opacity: 0.3; }
+        }
+        #exam-startup {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f00;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 32px;
+            text-align: center;
+            z-index: 25;
+            text-shadow: 0 0 10px #f00, 0 0 20px #f00;
+            pointer-events: none;
+            border: 4px solid #f00;
+            padding: 40px;
+            background: rgba(20, 0, 0, 0.9);
+            box-shadow: 0 0 30px #f00;
+            min-width: 400px;
+        }
+        .exam-line {
+            margin: 10px 0;
+            opacity: 0;
+            animation: type-in 0.1s forwards;
+        }
+        .exam-line:nth-child(1) { animation-delay: 0s; }
+        .exam-line:nth-child(2) { animation-delay: 0.2s; }
+        .exam-line:nth-child(3) { animation-delay: 0.4s; }
+        .blink-fast { animation: blink-fast 0.1s infinite; }
+        @keyframes blink-fast { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes type-in { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* カットイン画像用 */
+        #cutin-container {
+            position: absolute;
+            top: 25%;
+            left: -120%; /* 初期位置は画面外 */
+            width: 100%;
+            height: 300px;
+            z-index: 28;
+            pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.6);
+            border-top: 4px solid #f00;
+            border-bottom: 4px solid #f00;
+            overflow: hidden;
+        }
+        #cutin-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.8;
+            mix-blend-mode: hard-light;
+        }
+        /* スライドインアニメーション */
+        .cutin-active {
+            animation: cutin-slide 2.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes cutin-slide {
+            0% { left: -100%; opacity: 0; transform: skewX(20deg); }
+            10% { left: 0%; opacity: 1; transform: skewX(0deg); }
+            85% { left: 0%; opacity: 1; transform: skewX(0deg); }
+            100% { left: 100%; opacity: 0; transform: skewX(-20deg); }
+        }
+
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+            pointer-events: auto;
+        }
+        
+        /* タイトルロゴ強化 */
+        .title-logo {
+            font-size: 80px;
+            font-weight: 900;
+            color: #fff;
+            text-transform: uppercase;
+            text-align: center;
+            letter-spacing: 5px;
+            position: relative;
+            text-shadow: 
+                0 0 10px #0ff,
+                0 0 20px #0ff,
+                0 0 40px #0ff,
+                0 0 80px #0ff;
+            margin-bottom: 20px;
+            animation: title-pulse 2s infinite alternate;
+        }
+        .title-sub {
+            font-size: 24px;
+            color: #f0f;
+            text-shadow: 0 0 10px #f0f;
+            margin-bottom: 40px;
+            letter-spacing: 3px;
+        }
+
+        @keyframes title-pulse {
+            0% { transform: scale(1); text-shadow: 0 0 10px #0ff, 0 0 20px #0ff; }
+            100% { transform: scale(1.05); text-shadow: 0 0 20px #0ff, 0 0 40px #0ff, 0 0 60px #0ff; }
+        }
+
+        h2 {
+            color: #0ff;
+            text-align: center;
+            margin-top: 0;
+        }
+        p {
+            font-size: 18px;
+            color: #fff;
+            margin-bottom: 30px;
+            text-align: center;
+            line-height: 1.5;
+        }
+        button {
+            padding: 15px 40px;
+            font-size: 24px;
+            background: transparent;
+            color: #f0f;
+            border: 2px solid #f0f;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px #f0f;
+            transition: all 0.3s;
+            font-family: inherit;
+            margin: 10px;
+        }
+        button:hover {
+            background: #f0f;
+            color: #000;
+            box-shadow: 0 0 25px #f0f;
+        }
+        button.secondary {
+            border-color: #0ff;
+            color: #0ff;
+            box-shadow: 0 0 15px #0ff;
+            font-size: 18px;
+            padding: 10px 20px;
+        }
+        button.secondary:hover {
+            background: #0ff;
+            color: #000;
+            box-shadow: 0 0 25px #0ff;
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        /* 設定モーダル */
+        #settings-modal {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 35;
+            pointer-events: auto;
+            overflow-y: auto;
+        }
+        .settings-content {
+            width: 95%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 20px;
+            background: #111;
+            border: 2px solid #0ff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px #0ff;
+            margin: 20px 0;
+        }
+        .settings-section-title {
+            color: #ff0;
+            font-size: 18px;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #555;
+            padding-bottom: 5px;
+        }
+        .input-group {
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+        .input-group label {
+            color: #0ff;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .input-wrapper {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+        .input-wrapper input[type="text"] {
+            background: #000;
+            border: 1px solid #0ff;
+            color: #fff;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: inherit;
+            flex: 1;
+        }
+        .input-wrapper input[type="file"] {
+            color: #aaa;
+            font-size: 12px;
+            width: 90px;
+        }
+        .settings-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- EXAMシステム演出用レイヤー -->
+    <div id="exam-overlay" class="hidden"></div>
+    <div id="cutin-container" class="hidden">
+        <img id="cutin-img" src="" alt="">
+    </div>
+    <div id="exam-startup" class="hidden">
+        <div class="exam-line">SYSTEM: <span class="blink-fast">AUTO-PILOT</span></div>
+        <div class="exam-line">MODE: <span style="color:#ff0000">GENOCIDE</span></div>
+        <div class="exam-line">LIMITER: <span style="color:#ff0000">RELEASED</span></div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="top-ui">
+            <div id="score-board">SCORE: <span id="score">0</span></div>
+            <div id="timer-display">00:00.00</div>
+            <div id="auto-pilot-container">
+                <button id="auto-pilot-btn">AUTO PILOT: OFF</button>
+            </div>
+        </div>
+        
+        <div id="boss-hp-container">
+            <div id="boss-shield-bar"></div>
+            <div id="boss-hp-bar"></div>
+        </div>
+        <div>
+            <div id="health-bar-container">
+                <div id="health-bar"></div>
+            </div>
+            <div id="level-indicator">WEAPON LV: <span id="weapon-level">1</span></div>
+        </div>
+    </div>
+    
+    <div id="warning-msg">WARNING<br><span style="font-size:30px">HUGE BATTLESHIP APPROACHING</span></div>
+
+    <div id="start-screen">
+        <div class="title-logo">NEON<br>OVERDRIVE</div>
+        <div class="title-sub">INFINITE BATTLE SYSTEM</div>
+        <p>
+            [PC] Arrow/WASD: Move, Space: Shoot<br>
+            [Mobile] Touch & Drag<br>
+            <span style="color: #ff0;">★ Use "AUTO PILOT" for Hand-off Battle!</span>
+        </p>
+        <button id="start-btn">GAME START</button>
+        <button id="settings-btn" class="secondary">SETTINGS</button>
+    </div>
+
+    <div id="settings-modal" class="hidden">
+        <div class="settings-content">
+            <h2>SETTINGS</h2>
+            <p style="font-size:12px; color:#aaa;">※ファイル選択した画像は保存されません(リロードでリセット)。URL指定は保存されます。</p>
+            
+            <div class="settings-section-title">IMAGES (SKINS)</div>
+            
+            <!-- 汎用ファイル入力生成用 -->
+            <div id="image-settings-container"></div>
+
+            <div class="settings-section-title">AUDIO (BGM & SE)</div>
+            <div class="input-group">
+                <label>BGM: Normal (通常):</label>
+                <div class="input-wrapper"><input type="text" id="url-bgm" placeholder="https://... (mp3/wav)"></div>
+            </div>
+            <div class="input-group">
+                <label>BGM: Boss (ボス戦):</label>
+                <div class="input-wrapper"><input type="text" id="url-bgmBoss" placeholder="https://... (mp3/wav)"></div>
+            </div>
+            <div class="input-group">
+                <label>BGM: AutoPilot (自動操縦):</label>
+                <div class="input-wrapper"><input type="text" id="url-bgmAutoPilot" placeholder="https://... (mp3/wav)"></div>
+            </div>
+            <div class="input-group">
+                <label>SE: Shoot (発射音):</label>
+                <div class="input-wrapper"><input type="text" id="url-seShoot" placeholder="https://..."></div>
+            </div>
+            <div class="input-group">
+                <label>SE: Explosion (爆発音):</label>
+                <div class="input-wrapper"><input type="text" id="url-seExplosion" placeholder="https://..."></div>
+            </div>
+            <div class="input-group">
+                <label>SE: Powerup (強化音):</label>
+                <div class="input-wrapper"><input type="text" id="url-sePowerup" placeholder="https://..."></div>
+            </div>
+            <div class="input-group">
+                <label>SE: Beam (ビーム音):</label>
+                <div class="input-wrapper"><input type="text" id="url-seBeam" placeholder="https://..."></div>
+            </div>
+            <div class="input-group">
+                <label>SE: AutoPilot (起動音):</label>
+                <div class="input-wrapper"><input type="text" id="url-seAutoPilot" placeholder="https://..."></div>
+            </div>
+            
+            <div class="settings-buttons">
+                <button id="reset-settings-btn" class="secondary" style="font-size: 14px;">RESET</button>
+                <button id="save-settings-btn" class="secondary">SAVE & CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="game-over-screen" class="hidden">
+        <h1>GAME OVER</h1>
+        <p>FINAL SCORE: <span id="final-score">0</span></p>
+        <p>TIME: <span id="final-time">00:00.00</span></p>
+        <button id="restart-btn">TRY AGAIN</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ----------------------------------------------------
+// 設定 & ローカルストレージ管理
+// ----------------------------------------------------
+let config = {
+    images: {
+        player:       "https://i.imgur.com/QO413Cq.png", 
+        enemyBasic:   "https://i.imgur.com/WjeS8A3.png",
+        enemyChaser:  "https://i.imgur.com/h7jYqkV.png",
+        enemyShooter: "https://i.imgur.com/pM3irtS.png",
+        enemySine:    "",
+        boss:         "https://i.imgur.com/NDXpQSx.png",
+        funnel:       "",
+        cutinA:       "https://i.imgur.com/s6m7eNU.jpeg",
+        cutinB:       "https://i.imgur.com/V2gT5QB.jpeg",
+        cutinC:       "https://i.imgur.com/RxMPKUB.jpeg",
+        cutinD:       "https://i.imgur.com/LpsoV9G.jpeg",
+        background:   "" 
+    },
+    audio: {
+        bgm:          "https://cdn.pixabay.com/download/audio/2025/05/14/audio_336de8b1ca.mp3?filename=retro-synthwave-background-soundtrack-341853.mp3", 
+        bgmBoss:      "https://cdn.pixabay.com/download/audio/2025/12/26/audio_0845ba9f98.mp3?filename=industrial-cinematic-metal-trailer-underscore-kitsui-457277.mp3",
+        bgmAutoPilot: "https://cdn.pixabay.com/download/audio/2025/09/15/audio_a970ed9b34.mp3?filename=binary-battle-404700.mp3",
+        seShoot:      "", 
+        seExplosion:  "", 
+        sePowerup:    "",
+        seBeam:       "",
+        seAutoPilot:  ""  
+    }
+};
+
+const assets = {
+    images: {},
+    audio: {}
+};
+
+// 画像設定項目の定義（HTML生成用）
+const imageSettingsMap = [
+    { key: 'player', label: 'Player (自機)' },
+    { key: 'enemyBasic', label: 'Enemy Basic (紫)' },
+    { key: 'enemyChaser', label: 'Enemy Chaser (赤)' },
+    { key: 'enemyShooter', label: 'Enemy Shooter (橙)' },
+    { key: 'enemySine', label: 'Enemy Sine (緑)' },
+    { key: 'boss', label: 'Boss (巨大戦艦)' },
+    { key: 'funnel', label: 'Funnel (ファンネル)' },
+    { key: 'cutinA', label: 'Cut-in A (演出1)' },
+    { key: 'cutinB', label: 'Cut-in B (演出2)' },
+    { key: 'cutinC', label: 'Cut-in C (演出3)' },
+    { key: 'cutinD', label: 'Cut-in D (演出4)' },
+    { key: 'background', label: 'Background (背景)' }, // 背景追加
+];
+
+let currentBgmAudio = null;
+let currentBgmUrl = "";
+let audioContext = null;
+let noiseBuffer = null;
+
+function initAudioContext() {
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        createNoiseBuffer();
+    }
+    if (audioContext.state === 'suspended') {
+        audioContext.resume();
+    }
+}
+
+function createNoiseBuffer() {
+    const bufferSize = audioContext.sampleRate * 2;
+    const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    noiseBuffer = buffer;
+}
+
+function playSynthSound(type) {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const masterGain = audioContext.createGain();
+    masterGain.connect(audioContext.destination);
+    masterGain.gain.value = 0.3;
+
+    if (type === 'seShoot') {
+        const osc = audioContext.createOscillator();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.exponentialRampToValueAtTime(300, now + 0.15);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0.3, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.15);
+    } else if (type === 'seExplosion') {
+        if (!noiseBuffer) createNoiseBuffer();
+        const source = audioContext.createBufferSource();
+        source.buffer = noiseBuffer;
+        const filter = audioContext.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, now);
+        filter.frequency.linearRampToValueAtTime(100, now + 0.5);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0.8, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(masterGain);
+        source.start(now);
+        source.stop(now + 0.5);
+    } else if (type === 'sePowerup') {
+        const osc = audioContext.createOscillator();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.linearRampToValueAtTime(1600, now + 0.3);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0, now + 0.3);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 0.3);
+        const osc2 = audioContext.createOscillator();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(800, now);
+        osc2.frequency.linearRampToValueAtTime(2000, now + 0.4);
+        const gain2 = audioContext.createGain();
+        gain2.gain.setValueAtTime(0.1, now);
+        gain2.gain.linearRampToValueAtTime(0, now + 0.4);
+        osc2.connect(gain2);
+        gain2.connect(masterGain);
+        osc2.start(now);
+        osc2.stop(now + 0.4);
+    } else if (type === 'seBeam') {
+        const osc = audioContext.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        const lfo = audioContext.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 15;
+        const lfoGain = audioContext.createGain();
+        lfoGain.gain.value = 50;
+        lfo.connect(lfoGain);
+        lfoGain.connect(osc.frequency);
+        lfo.start(now);
+        lfo.stop(now + 2.0);
+        const gain = audioContext.createGain();
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.linearRampToValueAtTime(0, now + 2.0);
+        osc.connect(gain);
+        gain.connect(masterGain);
+        osc.start(now);
+        osc.stop(now + 2.0);
+    } else if (type === 'seAutoPilot') {
+        const frequencies = [880, 1109, 1318, 1760]; 
+        const duration = 0.1;
+        frequencies.forEach((freq, i) => {
+            const t = now + i * 0.08;
+            const osc = audioContext.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, t);
+            const gain = audioContext.createGain();
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.01, t + duration);
+            osc.connect(gain);
+            gain.connect(masterGain);
+            osc.start(t);
+            osc.stop(t + duration);
+        });
+    }
+}
+
+function loadConfig() {
+    const saved = localStorage.getItem('neonShooterConfigV10'); // Version Up to V10 to apply new default
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            config.images = { ...config.images, ...(parsed.images || {}) };
+            config.audio = { ...config.audio, ...(parsed.audio || {}) };
+        } catch (e) {
+            console.error("Config parse error", e);
+        }
+    }
+}
+
+function loadAssets() {
+    for (const [key, url] of Object.entries(config.images)) {
+        if (url && url.startsWith('data:')) {
+            const img = new Image();
+            img.src = url;
+            assets.images[key] = img;
+        } else if (url && url.trim() !== "") {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.src = url;
+            assets.images[key] = img;
+        } else {
+            assets.images[key] = null;
+        }
+    }
+}
+
+function playSound(key) {
+    initAudioContext();
+    const url = config.audio[key];
+    if (url && url.trim() !== "") {
+        try {
+            const audio = new Audio(url);
+            audio.volume = 0.4;
+            audio.play().catch(e => console.log("Audio play blocked", e));
+        } catch(e) {
+            console.error("Audio error", e);
+        }
+    } else {
+        playSynthSound(key);
+    }
+}
+
+function updateBGM() {
+    let nextUrl = config.audio.bgm; 
+
+    if (isAutoPilot && config.audio.bgmAutoPilot && config.audio.bgmAutoPilot.trim() !== "") {
+        nextUrl = config.audio.bgmAutoPilot;
+    } else if (isBossBattle && config.audio.bgmBoss && config.audio.bgmBoss.trim() !== "") {
+        nextUrl = config.audio.bgmBoss;
+    }
+
+    if (nextUrl === currentBgmUrl && currentBgmAudio && !currentBgmAudio.paused) {
+        return;
+    }
+
+    if (currentBgmAudio) {
+        currentBgmAudio.pause();
+        currentBgmAudio = null;
+    }
+
+    if (nextUrl && nextUrl.trim() !== "") {
+        currentBgmUrl = nextUrl;
+        currentBgmAudio = new Audio(nextUrl);
+        currentBgmAudio.loop = true;
+        currentBgmAudio.volume = 0.5;
+        currentBgmAudio.play().catch(e => console.log("BGM play blocked", e));
+    } else {
+        currentBgmUrl = "";
+    }
+}
+
+function stopBGM() {
+    if (currentBgmAudio) {
+        currentBgmAudio.pause();
+        currentBgmAudio.currentTime = 0;
+        currentBgmAudio = null;
+        currentBgmUrl = "";
+    }
+}
+
+function generateImageInputs() {
+    const container = document.getElementById('image-settings-container');
+    container.innerHTML = '';
+    
+    imageSettingsMap.forEach(item => {
+        const group = document.createElement('div');
+        group.className = 'input-group';
+        
+        const label = document.createElement('label');
+        label.innerText = item.label;
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'input-wrapper';
+        
+        const textInput = document.createElement('input');
+        textInput.type = 'text';
+        textInput.id = 'url-' + item.key;
+        textInput.placeholder = 'https://...';
+        
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.id = 'file-' + item.key;
+        fileInput.accept = 'image/*';
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    config.images[item.key] = evt.target.result;
+                    const img = new Image();
+                    img.src = evt.target.result;
+                    assets.images[item.key] = img;
+                    textInput.value = "[Local File Selected]";
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        wrapper.appendChild(textInput);
+        wrapper.appendChild(fileInput);
+        group.appendChild(label);
+        group.appendChild(wrapper);
+        container.appendChild(group);
+    });
+}
+
+function setupSettingsUI() {
+    const modal = document.getElementById('settings-modal');
+    const startScreen = document.getElementById('start-screen');
+    
+    generateImageInputs(); 
+
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        imageSettingsMap.forEach(item => {
+            const val = config.images[item.key];
+            const input = document.getElementById('url-' + item.key);
+            if (val && val.startsWith('data:')) {
+                input.value = "[Local File Selected]";
+            } else {
+                input.value = val || "";
+            }
+        });
+
+        document.getElementById('url-bgm').value = config.audio.bgm;
+        document.getElementById('url-bgmBoss').value = config.audio.bgmBoss;
+        document.getElementById('url-bgmAutoPilot').value = config.audio.bgmAutoPilot;
+        document.getElementById('url-seShoot').value = config.audio.seShoot;
+        document.getElementById('url-seExplosion').value = config.audio.seExplosion;
+        document.getElementById('url-sePowerup').value = config.audio.sePowerup;
+        document.getElementById('url-seBeam').value = config.audio.seBeam;
+        document.getElementById('url-seAutoPilot').value = config.audio.seAutoPilot;
+
+        modal.classList.remove('hidden');
+        startScreen.classList.add('hidden');
+    });
+
+    document.getElementById('save-settings-btn').addEventListener('click', () => {
+        imageSettingsMap.forEach(item => {
+            const inputVal = document.getElementById('url-' + item.key).value;
+            if (inputVal !== "[Local File Selected]") {
+                config.images[item.key] = inputVal;
+            }
+        });
+
+        config.audio.bgm = document.getElementById('url-bgm').value;
+        config.audio.bgmBoss = document.getElementById('url-bgmBoss').value;
+        config.audio.bgmAutoPilot = document.getElementById('url-bgmAutoPilot').value;
+        config.audio.seShoot = document.getElementById('url-seShoot').value;
+        config.audio.seExplosion = document.getElementById('url-seExplosion').value;
+        config.audio.sePowerup = document.getElementById('url-sePowerup').value;
+        config.audio.seBeam = document.getElementById('url-seBeam').value;
+        config.audio.seAutoPilot = document.getElementById('url-seAutoPilot').value;
+
+        try {
+            const saveConfig = JSON.parse(JSON.stringify(config));
+            for(const key in saveConfig.images) {
+                if(saveConfig.images[key] && saveConfig.images[key].startsWith('data:')) {
+                    saveConfig.images[key] = ""; // 保存しない
+                }
+            }
+            localStorage.setItem('neonShooterConfigV10', JSON.stringify(saveConfig)); // Version 10
+        } catch(e) {
+            console.log("Config save failed (probably too large)", e);
+        }
+        
+        loadAssets(); 
+
+        if (gameState === 'playing') {
+            updateBGM();
+        }
+
+        modal.classList.add('hidden');
+        startScreen.classList.remove('hidden');
+    });
+
+    document.getElementById('reset-settings-btn').addEventListener('click', () => {
+        if(confirm("All custom settings will be cleared. Are you sure?")) {
+            const inputs = modal.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => input.value = "");
+            imageSettingsMap.forEach(item => config.images[item.key] = "");
+        }
+    });
+}
+
+loadConfig();
+loadAssets();
+setupSettingsUI();
+
+// ----------------------------------------------------
+// ゲームロジック
+// ----------------------------------------------------
+let gameState = 'start';
+let score = 0;
+let frameCount = 0;
+let difficultyMultiplier = 1;
+let bossEncountered = 0;
+let isBossBattle = false;
+let warningTimer = 0;
+let isAutoPilot = false;
+let gameStartTime = 0;
+let currentTimerText = "00:00.00";
+
+const autoPilotBtn = document.getElementById('auto-pilot-btn');
+const examOverlay = document.getElementById('exam-overlay');
+const examStartup = document.getElementById('exam-startup');
+const cutinContainer = document.getElementById('cutin-container');
+const cutinImg = document.getElementById('cutin-img');
+
+function toggleAutoPilot() {
+    isAutoPilot = !isAutoPilot;
+    if(isAutoPilot) {
+        autoPilotBtn.innerText = "AUTO PILOT: ON";
+        autoPilotBtn.classList.add('active');
+        
+        playSound('seAutoPilot');
+        updateBGM();
+
+        const cutinKeys = ['cutinA', 'cutinB', 'cutinC', 'cutinD'];
+        const availableKeys = cutinKeys.filter(key => 
+            assets.images[key] && 
+            assets.images[key].complete && 
+            assets.images[key].naturalWidth !== 0
+        );
+        
+        if (availableKeys.length > 0) {
+            const randomKey = availableKeys[Math.floor(Math.random() * availableKeys.length)];
+            const img = assets.images[randomKey];
+            
+            cutinImg.src = img.src;
+            cutinContainer.classList.remove('hidden');
+            cutinContainer.classList.add('cutin-active');
+            
+            setTimeout(() => {
+                cutinContainer.classList.remove('cutin-active');
+                cutinContainer.classList.add('hidden');
+            }, 2500); 
+        }
+
+        examOverlay.classList.remove('hidden');
+        examStartup.classList.remove('hidden');
+        setTimeout(() => {
+            examStartup.classList.add('hidden');
+        }, 2000);
+    } else {
+        autoPilotBtn.innerText = "AUTO PILOT: OFF";
+        autoPilotBtn.classList.remove('active');
+        
+        updateBGM();
+
+        examOverlay.classList.add('hidden');
+        examStartup.classList.add('hidden');
+        cutinContainer.classList.remove('cutin-active');
+        cutinContainer.classList.add('hidden');
+    }
+}
+
+autoPilotBtn.addEventListener('click', () => {
+    toggleAutoPilot();
+    autoPilotBtn.blur(); 
+});
+
+const keys = {
+    ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+    w: false, s: false, a: false, d: false,
+    Space: false, z: false
+};
+
+window.addEventListener('keydown', e => {
+    if(keys.hasOwnProperty(e.key) || e.code === 'Space') keys[e.key] = true;
+    if(e.code === 'Space') keys.Space = true;
+    if((e.key === 'p' || e.key === 'P') && !e.repeat) toggleAutoPilot();
+});
+window.addEventListener('keyup', e => {
+    if(keys.hasOwnProperty(e.key) || e.code === 'Space') keys[e.key] = false;
+    if(e.code === 'Space') keys.Space = false;
+});
+
+const touch = { active: false, x: 0, y: 0 };
+window.addEventListener('touchstart', e => {
+    touch.active = true;
+    touch.x = e.touches[0].clientX;
+    touch.y = e.touches[0].clientY;
+    if(gameState === 'playing' && !isAutoPilot) e.preventDefault();
+}, {passive: false});
+window.addEventListener('touchmove', e => {
+    if (touch.active) {
+        touch.x = e.touches[0].clientX;
+        touch.y = e.touches[0].clientY;
+    }
+    if(gameState === 'playing' && !isAutoPilot) e.preventDefault();
+}, {passive: false});
+window.addEventListener('touchend', () => { touch.active = false; });
+
+
+/**
+ * クラス定義
+ */
+
+class Star {
+    constructor() {
+        this.reset();
+        this.x = Math.random() * canvas.width;
+    }
+    reset() {
+        this.x = canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2 + 0.5;
+        this.speed = isBossBattle ? 15 : Math.random() * 3 + 0.5;
+        this.color = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.1})`;
+    }
+    update() {
+        this.speed = isBossBattle ? 10 : Math.random() * 3 + 0.5;
+        this.x -= this.speed;
+        if (this.x < 0) this.reset();
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+class Particle {
+    constructor(x, y, color) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3 + 1;
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        this.life = 1.0;
+        this.decay = Math.random() * 0.03 + 0.02;
+    }
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.life -= this.decay;
+    }
+    draw() {
+        ctx.globalAlpha = this.life;
+        ctx.fillStyle = this.color;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+    }
+}
+
+class MegaBeam {
+    constructor(player) {
+        this.player = player;
+        this.active = false;
+        this.timer = 0;
+        this.maxTime = 300;
+        this.width = 0;
+        this.height = 0;
+        this.maxHeight = 60;
+    }
+    activate() {
+        this.active = true;
+        this.timer = this.maxTime;
+        this.width = 0;
+        this.height = 0;
+        playSound('seBeam');
+    }
+    update() {
+        if (!this.active) return;
+        this.timer--;
+        if (this.timer <= 0) {
+            this.active = false;
+            return;
+        }
+        if (this.timer > this.maxTime - 30) {
+            this.height += 2;
+        } else if (this.timer < 30) {
+            this.height -= 2;
+        } else {
+            this.height = this.maxHeight + Math.sin(frameCount * 0.5) * 10;
+        }
+        this.width = canvas.width;
+    }
+    draw() {
+        if (!this.active) return;
+        ctx.save();
+        ctx.translate(this.player.x + 20, this.player.y);
+        const grad = ctx.createLinearGradient(0, -this.height/2, 0, this.height/2);
+        grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
+        grad.addColorStop(0.2, 'rgba(255, 0, 255, 0.5)');
+        grad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+        grad.addColorStop(0.8, 'rgba(255, 0, 255, 0.5)');
+        grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, -this.height/2, this.width, this.height);
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, -this.height/4, this.width, this.height/2);
+        ctx.restore();
+    }
+}
+
+class BossMegaBeam {
+    constructor(boss) {
+        this.boss = boss;
+        this.active = false;
+        this.timer = 0;
+        this.maxTime = 200; 
+        this.chargeTime = 60; 
+        this.width = 0;
+        this.height = 0;
+        this.maxHeight = 150; 
+        this.state = 'idle'; 
+    }
+    charge() {
+        this.state = 'charging';
+        this.timer = this.chargeTime;
+        playSound('seBeam'); 
+    }
+    update() {
+        if (this.state === 'idle') return;
+
+        if (this.state === 'charging') {
+            this.timer--;
+            if (this.timer <= 0) {
+                this.state = 'firing';
+                this.timer = this.maxTime;
+            }
+        } else if (this.state === 'firing') {
+            this.timer--;
+            if (this.timer <= 0) {
+                this.state = 'idle';
+                this.height = 0;
+                return;
+            }
+            if (this.timer > this.maxTime - 20) this.height += 7;
+            else if (this.timer < 20) this.height -= 7;
+            else this.height = this.maxHeight + Math.sin(frameCount * 0.8) * 20;
+            
+            this.width = canvas.width;
+        }
+    }
+    draw() {
+        if (this.state === 'idle') return;
+        ctx.save();
+        ctx.translate(this.boss.x - 70, this.boss.y); 
+
+        if (this.state === 'charging') {
+            ctx.fillStyle = `rgba(255, 0, 0, ${Math.random()})`;
+            ctx.beginPath();
+            ctx.arc(0, 0, 5 + (this.chargeTime - this.timer), 0, Math.PI*2);
+            ctx.fill();
+            ctx.strokeStyle = '#f00';
+            ctx.beginPath();
+            for(let i=0; i<5; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 50 + Math.random() * 100;
+                ctx.moveTo(Math.cos(angle)*dist, Math.sin(angle)*dist);
+                ctx.lineTo(0, 0);
+            }
+            ctx.stroke();
+        } else {
+            const grad = ctx.createLinearGradient(0, -this.height/2, 0, this.height/2);
+            grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
+            grad.addColorStop(0.2, 'rgba(255, 0, 0, 0.8)');
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 1)');
+            grad.addColorStop(0.8, 'rgba(255, 0, 0, 0.8)');
+            grad.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+            ctx.fillStyle = grad;
+            ctx.fillRect(-this.width, -this.height/2, this.width, this.height); 
+        }
+        ctx.restore();
+    }
+}
+
+// 触手クラス
+class Tentacle {
+    constructor(boss, angleOffset, length, speed) {
+        this.boss = boss;
+        this.angleOffset = angleOffset;
+        this.segments = [];
+        this.numSegments = 20;
+        this.segLength = length / this.numSegments;
+        this.angle = 0;
+        this.speed = speed;
+        
+        // 初期化
+        for(let i=0; i<this.numSegments; i++) {
+            this.segments.push({x: boss.x, y: boss.y, angle: 0});
+        }
+    }
+    
+    update(player) {
+        // 根本の位置
+        const baseX = this.boss.x;
+        const baseY = this.boss.y;
+        
+        this.angle += this.speed;
+        
+        let targetAngle = 0;
+        if(player) {
+            targetAngle = Math.atan2(player.y - baseY, player.x - baseX);
+        } else {
+            targetAngle = Math.PI; // プレイヤーいなければ左へ
+        }
+        
+        let px = baseX;
+        let py = baseY;
+        
+        for(let i=0; i<this.numSegments; i++) {
+            // 動きの計算: サイン波 + 追尾
+            const wave = Math.sin(this.angle + i * 0.2) * 0.5;
+            // 先端ほどプレイヤーを向く係数
+            const tracking = (i / this.numSegments) * 0.8; 
+            
+            // 角度計算
+            let diff = targetAngle - this.angleOffset;
+            while(diff > Math.PI) diff -= Math.PI*2;
+            while(diff < -Math.PI) diff += Math.PI*2;
+            
+            const segmentAngle = this.angleOffset + wave + diff * tracking;
+            
+            this.segments[i].x = px + Math.cos(segmentAngle) * this.segLength;
+            this.segments[i].y = py + Math.sin(segmentAngle) * this.segLength;
+            this.segments[i].angle = segmentAngle;
+            
+            px = this.segments[i].x;
+            py = this.segments[i].y;
+        }
+    }
+    
+    draw(ctx) {
+        ctx.strokeStyle = '#f0f';
+        ctx.lineWidth = 8;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        
+        ctx.beginPath();
+        ctx.moveTo(this.segments[0].x, this.segments[0].y);
+        for(let i=1; i<this.numSegments; i++) {
+            ctx.lineTo(this.segments[i].x, this.segments[i].y);
+        }
+        ctx.stroke();
+        
+        // 先端 (Head)
+        const head = this.segments[this.numSegments-1];
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(head.x, head.y, 6, 0, Math.PI*2);
+        ctx.fill();
+    }
+}
+
+class PowerUp {
+    constructor(x, y, type) {
+        this.x = x;
+        this.y = y;
+        this.type = type; 
+        this.width = 25;
+        this.height = 25;
+        this.speedX = 2;
+        this.baseY = y;
+        this.markedForDeletion = false;
+        this.angle = 0;
+    }
+    update() {
+        this.x -= this.speedX;
+        this.angle += 0.1;
+        this.y = this.baseY + Math.sin(this.angle) * 30;
+        if (this.x < -this.width) this.markedForDeletion = true;
+    }
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        let color, text;
+        if (this.type === 'power') { color = '#ff0'; text = 'P'; }
+        else if (this.type === 'heal') { color = '#0f0'; text = 'H'; }
+        else if (this.type === 'funnel') { color = '#0ff'; text = 'F'; }
+        else if (this.type === 'mega') { color = '#f0f'; text = 'M'; }
+
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 2;
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = color;
+        ctx.strokeRect(-12, -12, 24, 24);
+        ctx.font = 'bold 16px Courier New';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 0, 0);
+        ctx.restore();
+    }
+}
+
+class Funnel {
+    constructor(player, index) {
+        this.player = player;
+        this.index = index;
+        this.angle = 0;
+        this.distance = 60; 
+        this.lastShot = 0;
+        this.shootDelay = 40; 
+    }
+    update(totalFunnels) {
+        this.angle += 0.05;
+        const angleOffset = (Math.PI * 2 / totalFunnels) * this.index;
+        this.x = this.player.x + Math.cos(this.angle + angleOffset) * this.distance;
+        this.y = this.player.y + Math.sin(this.angle + angleOffset) * this.distance;
+
+        if (frameCount - this.lastShot > this.shootDelay) {
+            bullets.push(new Bullet(this.x, this.y, 0, 1.5)); 
+            this.lastShot = frameCount;
+        }
+    }
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle * 2); 
+
+        if (assets.images.funnel && assets.images.funnel.complete && assets.images.funnel.naturalWidth !== 0) {
+            ctx.drawImage(assets.images.funnel, -10, -10, 20, 20);
+        } else {
+            ctx.fillStyle = '#0ff';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#0ff';
+            ctx.beginPath();
+            ctx.moveTo(8, 0); ctx.lineTo(0, 8); ctx.lineTo(-8, 0); ctx.lineTo(0, -8);
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+}
+
+// --- Influence Map Class (Lite version) ---
+class InfluenceMap {
+    constructor(width, height, cellSize) {
+        this.width = width;
+        this.height = height;
+        this.cellSize = cellSize;
+        this.cols = Math.ceil(width / cellSize);
+        this.rows = Math.ceil(height / cellSize);
+        this.grid = new Float32Array(this.cols * this.rows);
+    }
+
+    clear() {
+        this.grid.fill(0);
+    }
+
+    // グリッドに危険度を加算
+    addDanger(x, y, value, radiusGrid = 0) {
+        const cx = Math.floor(x / this.cellSize);
+        const cy = Math.floor(y / this.cellSize);
+        
+        if (radiusGrid === 0) {
+            if (cx >= 0 && cx < this.cols && cy >= 0 && cy < this.rows) {
+                this.grid[cy * this.cols + cx] += value;
+            }
+        } else {
+            // 半径指定がある場合は周辺も塗る
+            for (let dy = -radiusGrid; dy <= radiusGrid; dy++) {
+                for (let dx = -radiusGrid; dx <= radiusGrid; dx++) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    if (nx >= 0 && nx < this.cols && ny >= 0 && ny < this.rows) {
+                         // 中心ほど危険度高く
+                         const dist = Math.sqrt(dx*dx + dy*dy);
+                         if (dist <= radiusGrid) {
+                             this.grid[ny * this.cols + nx] += value * (1 - dist / (radiusGrid + 1));
+                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // 線分上の危険度を加算 (簡易的)
+    addLinearDanger(x, y, vx, vy, steps, value) {
+        for(let i = 0; i < steps; i++) {
+            // ステップごとに座標を進める
+            const px = x + vx * i;
+            const py = y + vy * i;
+            this.addDanger(px, py, value);
+        }
+    }
+    
+    // ボーナス（負の危険度）を加算
+    addBonus(x, y, value) {
+         this.addDanger(x, y, -value);
+    }
+
+    // 線分上にボーナスを加算
+    addBonusLinear(x, y, vx, vy, steps, value) {
+         this.addLinearDanger(x, y, vx, vy, steps, -value);
+    }
+
+    getDanger(x, y) {
+        const cx = Math.floor(x / this.cellSize);
+        const cy = Math.floor(y / this.cellSize);
+        if (cx >= 0 && cx < this.cols && cy >= 0 && cy < this.rows) {
+            return this.grid[cy * this.cols + cx];
+        }
+        return 9999; // 画面外は危険
+    }
+}
+
+class Player {
+    constructor() {
+        this.width = 40;
+        this.height = 20;
+        this.x = 50;
+        this.y = canvas.height / 2;
+        this.speed = 6;
+        this.color = '#0ff';
+        this.hp = 100;
+        this.maxHp = 100;
+        this.lastShot = 0;
+        this.shootDelay = 8;
+        this.shotLevel = 1;
+        this.funnels = [];
+        this.megaBeam = new MegaBeam(this);
+        this.trail = [];
+        
+        // Influence Map 初期化 (50pxグリッド)
+        this.iMap = new InfluenceMap(canvas.width, canvas.height, 50);
+    }
+
+    update() {
+        if (isAutoPilot) {
+            this.updateAI();
+             this.trail.push({x: this.x, y: this.y});
+             if (this.trail.length > 8) this.trail.shift(); 
+        } else {
+            this.updateManual();
+             this.trail = [];
+        }
+
+        this.funnels.forEach(f => f.update(this.funnels.length));
+        this.megaBeam.update();
+        
+        if (this.x < this.width/2) this.x = this.width/2;
+        if (this.x > canvas.width - this.width/2) this.x = canvas.width - this.width/2;
+        if (this.y < this.height/2) this.y = this.height/2;
+        if (this.y > canvas.height - this.height/2) this.y = canvas.height - this.height/2;
+    }
+
+    updateManual() {
+        if (keys.ArrowUp || keys.w) this.y -= this.speed;
+        if (keys.ArrowDown || keys.s) this.y += this.speed;
+        if (keys.ArrowLeft || keys.a) this.x -= this.speed;
+        if (keys.ArrowRight || keys.d) this.x += this.speed;
+        if (touch.active) {
+            this.x += (touch.x - this.x) * 0.1;
+            this.y += (touch.y - this.y) * 0.1;
+        }
+        
+        this.shoot();
+    }
+
+    updateAI() {
+        // --- AIロジック Ver.10.1 (Beam Avoidance Fix) ---
+        
+        // 1. Influence Mapの更新
+        this.iMap.clear();
+
+        // 敵弾の危険度マッピング
+        enemyBullets.forEach(b => {
+            this.iMap.addDanger(b.x, b.y, 20, 1); 
+            this.iMap.addLinearDanger(b.x, b.y, b.vx * 5, b.vy * 5, 4, 10);
+        });
+
+        // 敵本体の危険度
+        enemies.forEach(e => {
+            if (e.markedForDeletion) return;
+            if (e.type === 'chaser') {
+                this.iMap.addDanger(e.x, e.y, 150, 4); 
+            } else {
+                this.iMap.addDanger(e.x, e.y, 40, 2); 
+            }
+        });
+
+        // ボスの危険度
+        let targetEnemy = null;
+        let isBossBeaming = false; // ビーム中フラグ
+
+        if (boss) {
+            targetEnemy = boss;
+            this.iMap.addDanger(boss.x, boss.y, 100, 4); 
+            
+            // ビーム警戒 (チャージ中も含む！)
+            if (boss.megaBeam.state === 'firing' || boss.megaBeam.state === 'charging') {
+                isBossBeaming = true;
+                const beamHeightGrid = Math.ceil(boss.megaBeam.maxHeight / 50); // 最大太さで警戒
+                // ビーム射線上を完全に危険地帯にする
+                for(let ix = 0; ix < this.iMap.cols; ix++) {
+                    const bx = ix * 50;
+                    // ボスのX座標より左側すべて
+                    if (bx < boss.x) {
+                        this.iMap.addDanger(bx, boss.y, 500, beamHeightGrid + 2); // 危険度超特大
+                    }
+                }
+            }
+            
+            // 触手の危険度
+            if (boss.tentacles) {
+                boss.tentacles.forEach(t => {
+                    const head = t.segments[t.numSegments-1];
+                    this.iMap.addDanger(head.x, head.y, 80, 2);
+                });
+            }
+
+            // ボス戦中は画面右側（敵陣）に行きたがらないようにエリアペナルティ
+            const dangerZoneX = Math.floor(canvas.width * 0.6 / 50);
+            for(let y = 0; y < this.iMap.rows; y++) {
+                for(let x = dangerZoneX; x < this.iMap.cols; x++) {
+                    // 右に行けば行くほど危険
+                    this.iMap.grid[y * this.iMap.cols + x] += (x - dangerZoneX) * 20;
+                }
+            }
+
+        } else if (enemies.length > 0) {
+            let minD = 9999;
+            enemies.forEach(e => {
+                 const d = Math.sqrt((e.x-this.x)**2 + (e.y-this.y)**2);
+                 if(d < minD) { minD = d; targetEnemy = e; }
+            });
+        }
+        
+        // 攻撃ポジション評価 (ボーナス付与)
+        // ★修正: ボスがビームを撃とうとしている時は、正面にボーナスを与えない（立ち入らせない）
+        if (targetEnemy) {
+            // ビーム中はボスの正面ボーナスを無効化
+            const skipBonus = (targetEnemy === boss && isBossBeaming);
+
+            if (!skipBonus) {
+                const endGridX = Math.floor(targetEnemy.x / 50);
+                for(let gx = 0; gx < endGridX; gx++) {
+                     const dist = targetEnemy.x - gx * 50;
+                     let bonus = 0;
+                     
+                     // 適正距離 (300-700px)
+                     if (dist > 300 && dist < 700) {
+                         bonus = 20; 
+                         if (this.shotLevel < 3) bonus += 20;
+                     }
+                     
+                     // Y軸ボーナス
+                     if (bonus > 0) this.iMap.addBonus(gx * 50, targetEnemy.y, bonus);
+                }
+            }
+        }
+
+        // 2. 最適地点探索
+        const myGridX = Math.floor(this.x / 50);
+        const myGridY = Math.floor(this.y / 50);
+        
+        let bestScore = 9999;
+        let safetyTargetX = this.x;
+        let safetyTargetY = this.y;
+        const searchRange = 6; 
+        
+        for (let dy = -searchRange; dy <= searchRange; dy++) {
+            for (let dx = -searchRange; dx <= searchRange; dx++) {
+                const cx = myGridX + dx;
+                const cy = myGridY + dy;
+                if (cx < 1 || cx >= this.iMap.cols - 1 || cy < 1 || cy >= this.iMap.rows - 1) continue;
+
+                const idx = cy * this.iMap.cols + cx;
+                let score = this.iMap.grid[idx];
+                const distCost = Math.sqrt(dx*dx + dy*dy);
+                score += distCost * 2; 
+                score -= cx * 0.5;
+
+                if (score < bestScore) {
+                    bestScore = score;
+                    safetyTargetX = cx * 50 + 25;
+                    safetyTargetY = cy * 50 + 25;
+                }
+            }
+        }
+
+        // 3. 移動ベクトルの決定
+        const centerSelf = {x: this.x, y: this.y};
+        let reflexX = 0;
+        let reflexY = 0;
+        const panicDist = 70; 
+        let dangerFactor = 0; // 緊急度
+
+        // 直近回避
+        enemyBullets.forEach(b => {
+            const dx = centerSelf.x - b.x;
+            const dy = centerSelf.y - b.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < panicDist) {
+                const force = Math.pow((panicDist - dist) / panicDist, 2) * 80; 
+                reflexX += (dx / dist) * force; 
+                reflexY += (dy / dist) * force;
+                dangerFactor += force;
+            }
+        });
+
+        // 敵本体回避
+        enemies.forEach(e => {
+            if (e.markedForDeletion) return;
+            const dx = centerSelf.x - e.x;
+            const dy = centerSelf.y - e.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            const enemyPanicDist = (e.type === 'chaser') ? 120 : panicDist;
+            const power = (e.type === 'chaser') ? 100 : 50;
+
+            if (dist < enemyPanicDist) {
+                const force = Math.pow((enemyPanicDist - dist) / enemyPanicDist, 2) * power;
+                reflexX += (dx / dist) * force; 
+                reflexY += (dy / dist) * force;
+                dangerFactor += force;
+            }
+        });
+        
+        // 触手回避
+        if (boss) {
+            boss.tentacles.forEach(t => {
+                const head = t.segments[t.numSegments-1];
+                const dx = centerSelf.x - head.x;
+                const dy = centerSelf.y - head.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 100) {
+                     const force = Math.pow((100 - dist) / 100, 2) * 60;
+                     reflexX += (dx / dist) * force;
+                     reflexY += (dy / dist) * force;
+                     dangerFactor += force;
+                }
+            });
+        }
+        
+        // 2. ボスビーム回避 (Y軸方向へ緊急退避) - 物理反発
+        if (boss && (boss.megaBeam.state === 'firing' || boss.megaBeam.state === 'charging')) {
+             // ビームの太さ + 安全マージン
+             // チャージ中も避ける
+             const dangerY = boss.megaBeam.maxHeight / 2 + 100;
+             if (Math.abs(boss.y - this.y) < dangerY) {
+                 const dir = this.y > boss.y ? 1 : -1;
+                 reflexY += dir * 100; // 強烈な回避力
+                 dangerFactor += 50; 
+             }
+        }
+
+        // --- アイテム回収ロジック ---
+        let planX = (safetyTargetX - this.x);
+        let planY = (safetyTargetY - this.y);
+        let planWeight = 0.15;
+
+        let bestItem = null;
+        let maxItemScore = -1;
+        
+        powerUps.forEach(p => {
+             if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height) return;
+
+             const d = Math.sqrt((p.x - this.x)**2 + (p.y - this.y)**2);
+             const itemDanger = this.iMap.getDanger(p.x, p.y);
+             
+             let value = 0;
+             if (p.type === 'mega') value = 10000; 
+             else if (p.type === 'heal') {
+                 const hpLost = this.maxHp - this.hp;
+                 value = hpLost * 100; 
+                 if (this.hp < this.maxHp * 0.3) value += 5000; 
+             }
+             else if (p.type === 'power' || p.type === 'funnel') value = 2000;
+
+             value -= d * 2;
+             
+             let riskTolerance = (p.type === 'mega') ? 200 : 50;
+             if (itemDanger > riskTolerance) {
+                 value -= (itemDanger - riskTolerance) * 100;
+             }
+
+             if (value > maxItemScore && value > 0) {
+                 maxItemScore = value;
+                 bestItem = p;
+             }
+        });
+        
+        if (bestItem) {
+             const dx = bestItem.x - this.x;
+             const dy = bestItem.y - this.y;
+             const pullStrength = 8.0; 
+             planX = dx * pullStrength;
+             planY = dy * pullStrength;
+             planWeight = 0.3; 
+        } else {
+             // 敵ターゲットへの距離維持 (Y軸合わせ強化)
+             if (targetEnemy && !isBossBeaming) { // ビーム中はY軸合わせしない
+                 // Y軸は合わせる
+                 const yDiff = targetEnemy.y - this.y;
+                 if (Math.abs(yDiff) > 10) {
+                     planY += yDiff * 0.1; // 誘導強化
+                 }
+                 
+                 const idealX = Math.max(100, targetEnemy.x - 450);
+                 planX += (idealX - this.x) * 0.05;
+             }
+        }
+        
+        // --- メガ粒子砲発動中の特別動作 (Ver.9.1: Beam Tactician) ---
+        if (this.megaBeam.active) {
+            if (boss) {
+                const yDiff = boss.y - this.y;
+                planY = yDiff * 5.0; 
+                const idealX = Math.max(100, boss.x - 400);
+                planX = (idealX - this.x) * 2.0;
+                planWeight = 0.8; 
+            } else {
+                const sweepSpeed = 0.05;
+                const sweepAmp = canvas.height * 0.35; 
+                const targetSweepY = (canvas.height / 2) + Math.sin(frameCount * sweepSpeed) * sweepAmp;
+                planY = (targetSweepY - this.y) * 2.0; 
+                planX = (200 - this.x) * 1.0;
+                planWeight = 0.9; 
+            }
+        }
+
+        // ベクトル合成
+        let finalX = reflexX + planX * planWeight;
+        let finalY = reflexY + planY * planWeight;
+
+        // 速度制限
+        let maxSpeed = this.speed * 1.5; 
+        if (dangerFactor > 10) {
+            maxSpeed = this.speed * 3.5;
+        }
+
+        const len = Math.sqrt(finalX*finalX + finalY*finalY);
+        if (len > 0) {
+            const speed = Math.min(len, maxSpeed);
+            this.x += (finalX / len) * speed;
+            this.y += (finalY / len) * speed;
+        }
+
+        this.shoot();
+        this.trail.push({x: this.x, y: this.y});
+        if (this.trail.length > 8) this.trail.shift(); 
+    }
+
+    shoot() {
+        if (frameCount - this.lastShot > this.shootDelay) {
+            const centerX = this.x + this.width/2;
+            
+            // 基本ダメージ
+            const baseDamage = 1; 
+
+            // 1周に必要な弾数 (15度刻み = 24発で360度)
+            const bulletsPerCircle = 24;
+            const angleStep = Math.PI / 12; // 15度
+
+            // Lv1: シングル
+            if (this.shotLevel === 1) {
+                bullets.push(new Bullet(centerX, this.y, 0, baseDamage));
+            } 
+            // Lv2: ダブル (平行)
+            else if (this.shotLevel === 2) {
+                bullets.push(new Bullet(centerX, this.y - 8, 0, baseDamage));
+                bullets.push(new Bullet(centerX, this.y + 8, 0, baseDamage));
+            } 
+            // Lv3以降: 多重展開
+            else {
+                const count = this.shotLevel;
+                const fullCircles = Math.floor(count / bulletsPerCircle);
+                const remainder = count % bulletsPerCircle;
+
+                // 1. 全方位弾幕
+                for (let c = 0; c < fullCircles; c++) {
+                    for (let i = 0; i < bulletsPerCircle; i++) {
+                        const angle = i * angleStep;
+                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage));
+                    }
+                }
+
+                // 2. 扇状弾幕 (余り分)
+                if (remainder > 0) {
+                    const startAngle = -((remainder - 1) * angleStep) / 2;
+                    for (let i = 0; i < remainder; i++) {
+                        const angle = startAngle + i * angleStep;
+                        bullets.push(new Bullet(centerX, this.y, angle, baseDamage));
+                    }
+                }
+            }
+            
+            playSound('seShoot');
+            this.lastShot = frameCount;
+        }
+    }
+    applyPowerUp(type) {
+        playSound('sePowerup'); 
+
+        if (type === 'power') {
+            this.shotLevel++;
+            const txt = this.shotLevel >= 20 ? `DMG UP! (Lv${this.shotLevel})` : "LEVEL UP!";
+            createFloatingText(this.x, this.y - 20, txt, '#ff0');
+            document.getElementById('weapon-level').innerText = this.shotLevel;
+        } else if (type === 'heal') {
+            this.hp = Math.min(this.hp + 50, this.maxHp);
+            createFloatingText(this.x, this.y - 20, "REPAIR", '#0f0');
+            document.getElementById('health-bar').style.width = `${(this.hp / this.maxHp) * 100}%`;
+        } else if (type === 'funnel') {
+            this.funnels.push(new Funnel(this, this.funnels.length));
+            createFloatingText(this.x, this.y - 20, "FUNNEL GET!", '#0ff');
+        } else if (type === 'mega') {
+            this.megaBeam.activate();
+            createFloatingText(this.x, this.y - 20, "MEGA BEAM!", '#f0f');
+        }
+    }
+    draw() {
+        ctx.save();
+        
+        if (isAutoPilot && this.trail.length > 0) {
+            this.trail.forEach((pos, index) => {
+                const ratio = (index + 1) / this.trail.length;
+                ctx.globalAlpha = ratio * 0.4; 
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
+                    ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(5) brightness(1.5)'; 
+                    ctx.drawImage(assets.images.player, -25, -20, 50, 40);
+                } else {
+                     ctx.strokeStyle = '#f00';
+                     ctx.lineWidth = 2;
+                     ctx.beginPath();
+                     ctx.moveTo(20, 0); ctx.lineTo(-15, 10); ctx.lineTo(-10, 0); ctx.lineTo(-15, -10);
+                     ctx.closePath();
+                     ctx.stroke();
+                }
+                ctx.restore();
+            });
+            ctx.globalAlpha = 1.0; 
+        }
+
+        this.funnels.forEach(f => f.draw());
+        this.megaBeam.draw(); 
+
+        ctx.translate(this.x, this.y);
+        
+        if (isAutoPilot) {
+            ctx.shadowColor = '#f00';
+            ctx.shadowBlur = 20 + Math.sin(frameCount * 0.5) * 10;
+        }
+        
+        if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
+            if (isAutoPilot) {
+                ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(3)'; 
+            }
+            ctx.drawImage(assets.images.player, -25, -20, 50, 40);
+            ctx.filter = 'none'; 
+            
+            ctx.lineWidth = 1;
+            if (isAutoPilot) {
+                ctx.strokeStyle = '#f00';
+            } else {
+                ctx.strokeStyle = '#0ff';
+                ctx.shadowBlur = 5;
+                ctx.shadowColor = '#0ff';
+            }
+
+            if (this.shotLevel >= 6) {
+                ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.stroke();
+            }
+        } else {
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2;
+            
+            if (!isAutoPilot) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+            }
+            
+            ctx.beginPath();
+            ctx.moveTo(20, 0);
+            ctx.lineTo(-15, 10);
+            ctx.lineTo(-10, 0);
+            ctx.lineTo(-15, -10);
+            ctx.closePath();
+            ctx.stroke();
+            
+            if (this.shotLevel >= 2) {
+                ctx.beginPath(); ctx.moveTo(-5, -12); ctx.lineTo(5, -12); ctx.lineTo(0, -18); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(-5, 12); ctx.lineTo(5, 12); ctx.lineTo(0, 18); ctx.stroke();
+            }
+            if (this.shotLevel >= 6) {
+                ctx.strokeStyle = isAutoPilot ? '#f00' : '#ff0'; 
+                ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.stroke();
+            }
+            ctx.fillStyle = '#f0f'; ctx.shadowColor = '#f0f'; ctx.beginPath();
+            ctx.moveTo(-12, 0); ctx.lineTo(-25 - Math.random() * 10, 5); ctx.lineTo(-25 - Math.random() * 10, -5); ctx.fill();
+        }
+        ctx.restore();
+    }
+    damage(amount) {
+        if (this.shotLevel >= 6) {
+            amount = Math.floor(amount * 0.5); 
+        }
+
+        this.hp -= amount;
+        screenshake = 10;
+        document.getElementById('health-bar').style.width = `${(this.hp / this.maxHp) * 100}%`;
+        
+        if (this.hp <= 0) {
+            createExplosion(this.x, this.y, 20, '#0ff');
+            playSound('seExplosion');
+            endGame();
+        }
+    }
+}
+
+class Bullet {
+    constructor(x, y, angle, damage) {
+        this.x = x;
+        this.y = y;
+        this.damage = damage;
+        this.speed = 12;
+        this.vx = Math.cos(angle) * this.speed;
+        this.vy = Math.sin(angle) * this.speed;
+        if (damage > 5) { this.radius = 6; this.color = '#fff'; }
+        else if (damage > 3) { this.radius = 5; this.color = '#f0f'; }
+        else if (damage > 1) { this.radius = 4; this.color = '#f00'; }
+        else { this.radius = 3; this.color = '#ff0'; }
+        
+        if (damage === 1.5) this.color = '#0ff';
+
+        this.markedForDeletion = false;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x > canvas.width || this.x < 0 || this.y > canvas.height || this.y < 0) this.markedForDeletion = true;
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = this.radius * 2;
+        ctx.shadowColor = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(Math.atan2(this.vy, this.vx));
+        ctx.fillRect(-15, -this.radius/2, 15, this.radius); ctx.restore();
+    }
+}
+
+class EnemyBullet {
+    constructor(x, y, angle) {
+        this.x = x;
+        this.y = y;
+        this.speed = 6;
+        this.vx = Math.cos(angle) * this.speed;
+        this.vy = Math.sin(angle) * this.speed;
+        this.radius = 5;
+        this.color = '#ff4400';
+        this.markedForDeletion = false;
+    }
+    update() {
+        this.x += this.vx; this.y += this.vy;
+        if (this.x > canvas.width || this.x < 0 || this.y > canvas.height || this.y < 0) this.markedForDeletion = true;
+    }
+    draw() {
+        ctx.fillStyle = this.color;
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = this.color;
+        ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fill();
+    }
+}
+
+class Enemy {
+    constructor(presetType) {
+        this.width = 30;
+        this.height = 30;
+        this.x = canvas.width + this.width;
+        this.y = Math.random() * (canvas.height - 100) + 50;
+        this.speedX = Math.random() * 3 + 2 + (difficultyMultiplier - 1);
+        
+        if (presetType) {
+            this.type = presetType;
+        } else {
+            const r = Math.random();
+            if (r < 0.4) this.type = 'basic';
+            else if (r < 0.6) this.type = 'chaser';
+            else if (r < 0.75) this.type = 'sine';
+            else this.type = 'shooter';
+        }
+
+        this.hp = 1 + Math.floor(score / 2000);
+        this.markedForDeletion = false;
+        this.angle = 0;
+        this.time = 0;
+
+        if (this.type === 'chaser') {
+            this.color = '#f00';
+            this.hp *= 2;
+        } else if (this.type === 'sine') {
+            this.color = '#0f0';
+            this.baseY = this.y;
+            this.speedX = 3;
+        } else if (this.type === 'shooter') {
+            this.color = '#fa0';
+            this.speedX = 2;
+            this.shootTimer = Math.random() * 60;
+            this.hp *= 1.5;
+        } else {
+            this.color = '#f0f';
+            this.speedY = (Math.random() - 0.5) * 2;
+        }
+    }
+
+    update() {
+        this.time++;
+        
+        if (this.type === 'chaser') {
+            this.x -= this.speedX;
+            if (player.y > this.y) this.y += 1.5;
+            else this.y -= 1.5;
+        } 
+        else if (this.type === 'sine') {
+            this.x -= this.speedX;
+            this.y = this.baseY + Math.sin(this.time * 0.05) * 100;
+        }
+        else if (this.type === 'shooter') {
+            this.x -= this.speedX;
+            this.shootTimer++;
+            if (this.shootTimer > 80) {
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                enemyBullets.push(new EnemyBullet(this.x, this.y, angle));
+                this.shootTimer = 0;
+            }
+        }
+        else { // basic
+            this.x -= this.speedX;
+            this.y += this.speedY;
+            if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+        }
+
+        this.angle += 0.1;
+        if (this.x < -this.width) this.markedForDeletion = true;
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        let img = null;
+        if (this.type === 'basic') img = assets.images.enemyBasic;
+        else if (this.type === 'chaser') img = assets.images.enemyChaser;
+        else if (this.type === 'shooter') img = assets.images.enemyShooter;
+        else if (this.type === 'sine') img = assets.images.enemySine;
+
+        if (img && img.complete && img.naturalWidth !== 0) {
+            ctx.drawImage(img, -20, -20, 40, 40);
+        } else {
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = this.color;
+
+            if (this.type === 'chaser') {
+                ctx.beginPath();
+                for (let i = 0; i < 4; i++) {
+                    ctx.rotate(Math.PI / 2); ctx.moveTo(15, 0); ctx.lineTo(0, 5); ctx.lineTo(0, -5); ctx.lineTo(15, 0);
+                }
+                ctx.stroke();
+            } else if (this.type === 'sine') {
+                ctx.beginPath(); ctx.arc(0,0,15,0,Math.PI*2); ctx.stroke();
+                ctx.beginPath(); ctx.arc(0,0,5,0,Math.PI*2); ctx.stroke();
+            } else if (this.type === 'shooter') {
+                ctx.beginPath(); ctx.moveTo(15,0); ctx.lineTo(-10, 10); ctx.lineTo(-10, -10); ctx.closePath(); ctx.stroke();
+            } else {
+                ctx.strokeRect(-15, -15, 30, 30);
+                ctx.beginPath(); ctx.moveTo(-10, -10); ctx.lineTo(10, 10); ctx.moveTo(10, -10); ctx.lineTo(-10, 10); ctx.stroke();
+            }
+        }
+        ctx.restore();
+    }
+}
+
+class Boss {
+    constructor() {
+        this.width = 150;
+        this.height = 150;
+        this.x = canvas.width + 200;
+        this.y = canvas.height / 2;
+        this.targetX = canvas.width - 250;
+        this.hp = 2000 + (bossEncountered * 1000);
+        this.maxHp = this.hp;
+        this.state = 'enter';
+        this.dy = 2;
+        this.timer = 0;
+        this.attackTimer = 0;
+        this.markedForDeletion = false;
+        
+        // 覚醒フラグ
+        this.awakened = false;
+        
+        // シールド
+        this.maxShield = bossEncountered >= 2 ? 500 * (1 + bossEncountered * 0.5) : 0;
+        this.shieldHp = this.maxShield;
+
+        this.megaBeam = new BossMegaBeam(this);
+        if (bossEncountered >= 3) this.megaBeam.maxHeight = 300; 
+        
+        // 触手 (Lv3以降、レベルごとに2本増える)
+        this.tentacles = [];
+        if (bossEncountered >= 3) {
+            const numTentacles = (bossEncountered - 2) * 2;
+            for(let i=0; i<numTentacles; i++) {
+                // ボスの周りに等間隔で配置するための角度
+                const angle = (Math.PI * 2 / numTentacles) * i;
+                this.tentacles.push(new Tentacle(this, angle, 300, 0.05 + Math.random() * 0.05));
+            }
+        }
+    }
+
+    update() {
+        this.megaBeam.update();
+        
+        // 触手更新
+        this.tentacles.forEach(t => t.update(player));
+
+        // 覚醒判定
+        if (!this.awakened && this.hp < this.maxHp * 0.5) {
+            this.awakened = true;
+            createFloatingText(this.x, this.y - 100, "WARNING: LIMIT BROKEN!", '#f00');
+            playSound('sePowerup'); // 覚醒音
+            createExplosion(this.x, this.y, 50, '#f00');
+        }
+
+        if (this.state === 'enter') {
+            this.x -= 2;
+            if (this.x <= this.targetX) this.state = 'fight';
+        } else {
+            // 覚醒時は移動速度アップ
+            const moveSpeed = this.awakened ? this.dy * 1.5 : this.dy;
+            this.y += moveSpeed;
+            
+            if (this.y < 100 || this.y > canvas.height - 100) this.dy *= -1;
+
+            this.attackTimer++;
+            
+            // 覚醒時は攻撃頻度係数を適用 (0.6倍 = 高速化)
+            const speedMod = this.awakened ? 0.6 : 1.0;
+
+            if (this.attackTimer % Math.floor(Math.max(60, 120 - bossEncountered * 10) * speedMod) === 0) {
+                 const count = 12 + bossEncountered * 2;
+                 for(let i=0; i<count; i++) {
+                     enemyBullets.push(new EnemyBullet(this.x, this.y, (Math.PI*2/count)*i));
+                 }
+            }
+            
+            if (this.attackTimer % Math.floor(Math.max(40, 90 - bossEncountered * 5) * speedMod) === 0) {
+                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                 const bursts = 3 + Math.floor(bossEncountered / 2);
+                 for(let i=0; i<bursts; i++) {
+                    setTimeout(() => enemyBullets.push(new EnemyBullet(this.x, this.y, angle)), i * 100 * speedMod);
+                 }
+            }
+
+            if (bossEncountered >= 1 && this.attackTimer % 400 === 200) {
+                this.summonMinions();
+            }
+
+            if (bossEncountered >= 2 && this.megaBeam.state === 'idle') {
+                // 覚醒時はビーム確率アップ
+                const beamProb = this.awakened ? 0.01 + (bossEncountered * 0.002) : 0.005 + (bossEncountered * 0.001);
+                if (Math.random() < beamProb) {
+                    this.megaBeam.charge();
+                    createFloatingText(this.x, this.y - 100, "CAUTION!!", '#f00');
+                }
+            }
+            
+            // シールド回復ロジックを削除 (回復なし)
+        }
+        
+        const hpBar = document.getElementById('boss-hp-bar');
+        hpBar.style.width = Math.max(0, (this.hp / this.maxHp * 100)) + '%';
+        
+        const shieldBar = document.getElementById('boss-shield-bar');
+        if (this.maxShield > 0) {
+            shieldBar.style.width = Math.max(0, (this.shieldHp / this.maxShield * 100)) + '%';
+        } else {
+            shieldBar.style.width = '0%';
+        }
+    }
+    
+    summonMinions() {
+        createFloatingText(this.x, this.y - 50, "SUMMONING...", '#f0f');
+        const count = 2 + Math.min(3, bossEncountered);
+        for(let i=0; i<count; i++) {
+            const e = new Enemy('chaser');
+            e.x = this.x;
+            e.y = this.y + (Math.random() - 0.5) * 200;
+            enemies.push(e);
+        }
+    }
+
+    takeDamage(amount) {
+        if (this.shieldHp > 0) {
+            this.shieldHp -= amount;
+            if (this.shieldHp <= 0) {
+                this.shieldHp = 0;
+                createFloatingText(this.x, this.y, "SHIELD BROKEN!", '#0ff');
+                createExplosion(this.x, this.y, 20, '#0ff');
+                playSound('seExplosion');
+            }
+        } else {
+            this.hp -= amount;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        this.megaBeam.draw();
+        
+        // 触手描画 (ボスの背後)
+        if (this.tentacles) {
+            this.tentacles.forEach(t => t.draw(ctx));
+        }
+        
+        ctx.translate(this.x, this.y);
+
+        // 覚醒エフェクト (赤く明滅)
+        if (this.awakened) {
+            ctx.shadowColor = '#f00';
+            ctx.shadowBlur = 60 + Math.sin(frameCount * 0.2) * 30; // 強烈に明滅
+
+            // 追加: 放射状に広がる赤いエネルギーシールド
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen'; // 明るく重ねる
+            
+            // 脈動する半径
+            const pulse = Math.sin(frameCount * 0.1);
+            const auraR = 130 + pulse * 10;
+
+            // グラデーションでエネルギーの球体を表現
+            const grad = ctx.createRadialGradient(0, 0, 80, 0, 0, auraR);
+            grad.addColorStop(0, 'rgba(255, 0, 0, 0)');
+            grad.addColorStop(0.7, 'rgba(255, 0, 0, 0.2)');
+            grad.addColorStop(1, 'rgba(255, 50, 50, 0.6)'); // 外側ほど濃く
+
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // バリアの外枠リング
+            ctx.strokeStyle = `rgba(255, 100, 100, ${0.5 + pulse * 0.3})`;
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, auraR, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 回転するスパイクエフェクト
+            ctx.rotate(frameCount * 0.05);
+            ctx.strokeStyle = `rgba(255, 0, 0, 0.3)`;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            const spikeCount = 8;
+            for(let i=0; i<spikeCount; i++) {
+                const angle = (Math.PI * 2 / spikeCount) * i;
+                const sx = Math.cos(angle) * (auraR - 20);
+                const sy = Math.sin(angle) * (auraR - 20);
+                const ex = Math.cos(angle) * (auraR + 20);
+                const ey = Math.sin(angle) * (auraR + 20);
+                ctx.moveTo(sx, sy);
+                ctx.lineTo(ex, ey);
+            }
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        if (assets.images.boss && assets.images.boss.complete && assets.images.boss.naturalWidth !== 0) {
+            // 覚醒時はフィルターで赤くする (Canvas filter機能を使用)
+            if (this.awakened) {
+                ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(3)'; 
+            }
+            ctx.drawImage(assets.images.boss, -75, -75, 150, 150);
+            ctx.filter = 'none'; // リセット
+        } else {
+            ctx.fillStyle = this.awakened ? '#500' : '#200'; // 覚醒時は色変更
+            ctx.strokeStyle = '#f00';
+            ctx.lineWidth = 4;
+            // shadowは上で設定済み
+            if (!this.awakened) {
+                ctx.shadowBlur = 20;
+                ctx.shadowColor = '#f00';
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(70, 0); ctx.lineTo(-50, 70); ctx.lineTo(-70, 40); ctx.lineTo(-70, -40); ctx.lineTo(-50, -70);
+            ctx.closePath();
+            ctx.fill(); ctx.stroke();
+
+            ctx.fillStyle = `rgba(255, 0, 0, ${Math.abs(Math.sin(this.attackTimer * (this.awakened ? 0.2 : 0.1)))}`;
+            ctx.beginPath(); ctx.arc(0, 0, 30, 0, Math.PI*2); ctx.fill();
+        }
+        
+        // --- 新しいシールド描画 (オーラ風) ---
+        if (this.shieldHp > 0) {
+            ctx.save();
+            const opacity = this.shieldHp / this.maxShield;
+            // 覚醒状態なら赤、通常ならシアン
+            const baseColor = this.awakened ? '255, 0, 0' : '0, 255, 255';
+            
+            // 加算合成で発光感を出す
+            ctx.globalCompositeOperation = 'lighter';
+            
+            // オーラの層を描画
+            const time = frameCount * 0.1;
+            const baseRadius = 110;
+            
+            // 3層の揺らめくオーラ
+            for(let i=0; i<3; i++) {
+                const fluctuation = Math.sin(time * (i + 1) + i) * 5;
+                const r = baseRadius + i * 10 + fluctuation;
+                const alpha = opacity * (0.3 - i * 0.05);
+
+                ctx.fillStyle = `rgba(${baseColor}, ${alpha})`;
+                ctx.beginPath();
+                
+                // 正円ではなく少しノイズの乗った円
+                const segments = 30;
+                for (let j = 0; j <= segments; j++) {
+                    const angle = (Math.PI * 2 / segments) * j;
+                    // 角度によって半径を微妙に変える
+                    const noise = Math.sin(angle * (5 + i) + time * 2) * 5;
+                    const x = Math.cos(angle) * (r + noise);
+                    const y = Math.sin(angle) * (r + noise);
+                    if (j === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                
+                // 輪郭線
+                ctx.strokeStyle = `rgba(${baseColor}, ${alpha * 2})`;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+        // -------------------------
+
+        ctx.restore();
+    }
+}
+
+class FloatingText {
+    constructor(x, y, text, color) {
+        this.x = x; this.y = y; this.text = text; this.color = color; this.life = 1.0; this.vy = -1;
+    }
+    update() { this.y += this.vy; this.life -= 0.02; }
+    draw() {
+        ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color;
+        ctx.font = 'bold 20px Courier New'; ctx.shadowBlur = 5; ctx.shadowColor = this.color;
+        ctx.fillText(this.text, this.x, this.y); ctx.globalAlpha = 1.0;
+    }
+}
+
+// ----------------------------------------------------
+// 安全な衝突判定関数
+// ----------------------------------------------------
+function checkCollision(rect1, rect2) {
+    if (!rect1 || !rect2) return false; 
+    const dx = rect1.x - rect2.x;
+    const dy = rect1.y - rect2.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    
+    // 安全のため width が無い場合はデフォルト値を使用
+    const w1 = rect1.width || 40;
+    const w2 = rect2.width || 30;
+    
+    let r1 = w1 / 2;
+    let r2 = w2 / 2;
+
+    // ★追加: オートパイロット時の判定調整
+    if (isAutoPilot && (rect1 === player || rect2 === player)) {
+        const target = rect1 === player ? rect2 : rect1;
+        
+        // 相手がアイテムなら判定を広げる (1.5倍)
+        if (target instanceof PowerUp) {
+            if (rect1 === player) r1 *= 1.5;
+            if (rect2 === player) r2 *= 1.5;
+        } 
+        // 相手が敵や弾なら判定を縮める (0.4倍)
+        else {
+            if (rect1 === player) r1 *= 0.4;
+            if (rect2 === player) r2 *= 0.4;
+        }
+    }
+
+    return distance < (r1 + r2) * 0.8; 
+}
+
+function checkBeamCollision(beam, target) {
+    // 修正: BossMegaBeamの場合はstateを確認、Playerの場合はactiveを確認
+    const isActive = (beam instanceof BossMegaBeam) ? (beam.state === 'firing') : beam.active;
+    
+    if (!isActive || !target) return false;
+    
+    let beamY, beamLeft, beamTop, beamBottom;
+    if (beam instanceof BossMegaBeam) {
+        beamY = beam.boss.y;
+        beamLeft = 0; 
+        const beamRight = beam.boss.x - 70;
+        beamTop = beamY - beam.height/2;
+        beamBottom = beamY + beam.height/2;
+        
+        const tTop = target.y - (target.height/2);
+        const tBottom = target.y + (target.height/2);
+        const tRight = target.x + (target.width/2);
+        
+        if (tRight > beamLeft && target.x - target.width/2 < beamRight && tBottom > beamTop && tTop < beamBottom) {
+            return true;
+        }
+    } else {
+        beamY = beam.player.y;
+        beamTop = beamY - beam.height/2;
+        beamBottom = beamY + beam.height/2;
+        beamLeft = beam.player.x + 20;
+        
+        const tTop = target.y - (target.height/2);
+        const tBottom = target.y + (target.height/2);
+        const tLeft = target.x - (target.width/2);
+        
+        if (tLeft + target.width > beamLeft && tBottom > beamTop && tTop < beamBottom) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// 変数
+let player;
+let bullets = [];
+let enemyBullets = [];
+let enemies = [];
+let particles = [];
+let stars = [];
+let powerUps = [];
+let floatingTexts = [];
+let animationId;
+let screenshake = 0;
+let enemySpawnTimer = 0;
+let boss = null;
+let nextBossScore = 2000;
+
+function init() {
+    initAudioContext();
+    updateBGM(); // 初期BGM
+
+    stars = [];
+    for(let i=0; i<50; i++) stars.push(new Star());
+    
+    document.getElementById('start-screen').classList.add('hidden');
+    document.getElementById('game-over-screen').classList.add('hidden');
+    document.getElementById('boss-hp-container').style.display = 'none';
+    document.getElementById('health-bar').style.width = '100%';
+    document.getElementById('score').innerText = '0';
+    document.getElementById('weapon-level').innerText = '1';
+    
+    player = new Player();
+    bullets = [];
+    enemyBullets = [];
+    enemies = [];
+    particles = [];
+    powerUps = [];
+    floatingTexts = [];
+    score = 0;
+    frameCount = 0;
+    difficultyMultiplier = 1;
+    screenshake = 0;
+    bossEncountered = 0;
+    nextBossScore = 2000;
+    boss = null;
+    isBossBattle = false;
+    gameState = 'playing';
+    gameStartTime = Date.now();
+
+    animate();
+}
+
+function createExplosion(x, y, count, color) {
+    for (let i = 0; i < count; i++) {
+        particles.push(new Particle(x, y, color));
+    }
+}
+
+function createFloatingText(x, y, text, color) {
+    floatingTexts.push(new FloatingText(x, y, text, color));
+}
+
+function endGame() {
+    stopBGM(); 
+    playSound('seExplosion');
+
+    gameState = 'gameover';
+    document.getElementById('final-score').innerText = score;
+    document.getElementById('final-time').innerText = currentTimerText;
+    document.getElementById('game-over-screen').classList.remove('hidden');
+    document.getElementById('boss-hp-container').style.display = 'none';
+    document.getElementById('warning-msg').style.display = 'none';
+    cancelAnimationFrame(animationId);
+}
+
+function startBossBattle() {
+    isBossBattle = true;
+    updateBGM(); // ボスBGMへ切り替え
+
+    document.getElementById('warning-msg').style.display = 'block';
+    setTimeout(() => {
+        document.getElementById('warning-msg').style.display = 'none';
+        boss = new Boss();
+        document.getElementById('boss-hp-container').style.display = 'block';
+    }, 3000);
+}
+
+function animate() {
+    if (gameState !== 'playing') return;
+
+    // タイマー更新
+    const elapsed = Date.now() - gameStartTime;
+    const minutes = Math.floor(elapsed / 60000);
+    const seconds = Math.floor((elapsed % 60000) / 1000);
+    const centiseconds = Math.floor((elapsed % 1000) / 10);
+    currentTimerText = 
+        (minutes < 10 ? "0" : "") + minutes + ":" + 
+        (seconds < 10 ? "0" : "") + seconds + "." + 
+        (centiseconds < 10 ? "0" : "") + centiseconds;
+    document.getElementById('timer-display').innerText = currentTimerText;
+
+    // 背景クリア処理
+    if (assets.images.background && assets.images.background.complete && assets.images.background.naturalWidth !== 0) {
+         ctx.drawImage(assets.images.background, 0, 0, canvas.width, canvas.height);
+         ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+         ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else {
+         ctx.fillStyle = '#050505';
+         ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    ctx.save();
+    if (screenshake > 0) {
+        ctx.translate((Math.random() - 0.5) * screenshake, (Math.random() - 0.5) * screenshake);
+        screenshake *= 0.9;
+        if (screenshake < 0.5) screenshake = 0;
+    }
+
+    stars.forEach(star => { star.update(); star.draw(); });
+
+    if(player) {
+        player.update();
+        player.draw();
+    }
+
+    bullets.forEach((bullet, index) => {
+        bullet.update(); bullet.draw();
+        if (bullet.markedForDeletion) bullets.splice(index, 1);
+    });
+
+    enemyBullets.forEach((eb, index) => {
+        eb.update(); eb.draw();
+        if (player && player.megaBeam.active && checkBeamCollision(player.megaBeam, {x:eb.x, y:eb.y, width:eb.radius*2, height:eb.radius*2})) {
+            eb.markedForDeletion = true;
+            createExplosion(eb.x, eb.y, 1, '#f0f');
+        }
+        else if (player && checkCollision({x:eb.x, y:eb.y, width:eb.radius*2}, player)) {
+            player.damage(10);
+            createExplosion(player.x, player.y, 5, '#f00');
+            eb.markedForDeletion = true;
+        }
+    });
+
+    if (!isBossBattle && score >= nextBossScore) {
+        startBossBattle();
+    }
+
+    if (boss) {
+        boss.update();
+        boss.draw();
+        
+        if (boss.megaBeam.state === 'firing' && player && checkBeamCollision(boss.megaBeam, player)) {
+            player.damage(2); 
+        }
+
+        // 触手判定
+        if (boss.tentacles) {
+            boss.tentacles.forEach(t => {
+                const head = t.segments[t.numSegments-1];
+                if (player && checkCollision({x:head.x, y:head.y, width:20}, player)) {
+                    player.damage(2); // 触手ダメージ
+                }
+            });
+        }
+
+        if (player && player.megaBeam.active && checkBeamCollision(player.megaBeam, boss)) {
+             boss.takeDamage(10); 
+             createExplosion(boss.x + (Math.random()-0.5)*100, boss.y + (Math.random()-0.5)*100, 1, '#f0f');
+        }
+
+        bullets.forEach(bullet => {
+            if (boss && checkCollision(boss, bullet)) {
+                boss.takeDamage(bullet.damage); 
+                bullet.markedForDeletion = true;
+                createExplosion(bullet.x, bullet.y, 1, '#f50');
+            }
+        });
+        
+        if (boss.hp <= 0) {
+            createExplosion(boss.x, boss.y, 100, '#f00');
+            createFloatingText(boss.x, boss.y, "BOSS DESTROYED!", '#f00');
+            playSound('seExplosion');
+            score += 5000 + (bossEncountered * 2000); 
+            document.getElementById('score').innerText = score;
+            
+            boss = null; 
+            isBossBattle = false;
+            bossEncountered++;
+            nextBossScore = score + 3000 + (bossEncountered * 1000);
+            updateBGM(); // 通常BGMへ戻す（AutoPilotならそのまま）
+            
+            document.getElementById('boss-hp-container').style.display = 'none';
+            powerUps.push(new PowerUp(canvas.width/2, canvas.height/2, 'power'));
+            powerUps.push(new PowerUp(canvas.width/2 + 50, canvas.height/2, 'heal'));
+            powerUps.push(new PowerUp(canvas.width/2 - 50, canvas.height/2, 'funnel'));
+            if (Math.random() < 0.5) powerUps.push(new PowerUp(canvas.width/2 + 100, canvas.height/2, 'mega'));
+        }
+
+        if (player && boss && checkCollision(player, boss)) {
+            player.damage(1);
+        }
+    } 
+    else if (!isBossBattle) {
+        enemySpawnTimer++;
+        difficultyMultiplier = 1 + Math.floor(score / 500) * 0.1;
+        let spawnRate = Math.max(10, 60 - Math.floor(score / 100));
+        
+        if (enemySpawnTimer > spawnRate) {
+            enemies.push(new Enemy());
+            enemySpawnTimer = 0;
+        }
+    }
+
+    powerUps.forEach((p, index) => {
+        p.update(); p.draw();
+        if (player && checkCollision(player, p)) {
+            player.applyPowerUp(p.type);
+            // 複雑な三項演算子を展開
+            let explosionColor = '#0f0'; // Default heal
+            if (p.type === 'power') explosionColor = '#ff0';
+            else if (p.type === 'funnel') explosionColor = '#0ff';
+            else if (p.type === 'mega') explosionColor = '#f0f';
+            
+            createExplosion(p.x, p.y, 10, explosionColor);
+            p.markedForDeletion = true;
+        }
+    });
+
+    enemies.forEach((enemy, eIndex) => {
+        enemy.update(); enemy.draw();
+
+        if (player && player.megaBeam.active && checkBeamCollision(player.megaBeam, enemy)) {
+             enemy.hp -= 100; 
+             createExplosion(enemy.x, enemy.y, 2, '#f0f');
+        }
+        
+        if (boss && boss.megaBeam.state === 'firing' && checkBeamCollision(boss.megaBeam, enemy)) {
+             enemy.hp -= 100;
+             createExplosion(enemy.x, enemy.y, 2, '#f00');
+        }
+
+        bullets.forEach((bullet, bIndex) => {
+            if (checkCollision(bullet, enemy)) {
+                enemy.hp -= bullet.damage;
+                bullet.markedForDeletion = true;
+                createExplosion(bullet.x, bullet.y, 3, bullet.color);
+            }
+        });
+        
+        if (enemy.hp <= 0 && !enemy.markedForDeletion) {
+             enemy.markedForDeletion = true;
+             createExplosion(enemy.x, enemy.y, 10, enemy.color);
+             playSound('seExplosion');
+             score += (enemy.type === 'chaser' ? 200 : 100);
+             document.getElementById('score').innerText = score;
+             if (Math.random() < 0.15) {
+                const r = Math.random();
+                let type = 'power';
+                if (r < 0.3) type = 'heal';
+                else if (r < 0.5) type = 'funnel';
+                else if (r < 0.6) type = 'mega'; 
+                powerUps.push(new PowerUp(enemy.x, enemy.y, type));
+             }
+        }
+
+        if (!enemy.markedForDeletion && player && checkCollision(player, enemy)) {
+             player.damage(10);
+             enemy.markedForDeletion = true;
+             createExplosion(enemy.x, enemy.y, 15, '#f00');
+        }
+    });
+
+    // 削除処理を一括で実施
+    bullets = bullets.filter(b => !b.markedForDeletion);
+    enemyBullets = enemyBullets.filter(eb => !eb.markedForDeletion);
+    enemies = enemies.filter(e => !e.markedForDeletion);
+    powerUps = powerUps.filter(p => !p.markedForDeletion);
+
+    particles.forEach((p, index) => { p.update(); p.draw(); if (p.life <= 0) particles.splice(index, 1); });
+    floatingTexts.forEach((ft, index) => { ft.update(); ft.draw(); if (ft.life <= 0) floatingTexts.splice(index, 1); });
+
+    ctx.restore();
+    frameCount++;
+    animationId = requestAnimationFrame(animate);
+}
+
+document.getElementById('start-btn').addEventListener('click', init);
+document.getElementById('restart-btn').addEventListener('click', init);
+
+</script>
+</body>
+</html>
