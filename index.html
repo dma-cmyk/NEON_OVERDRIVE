@@ -1857,7 +1857,7 @@ class Player {
                 ctx.save();
                 ctx.translate(pos.x, pos.y);
                 if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
-                    ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(5) brightness(1.5)'; 
+                    // フィルター削除
                     ctx.drawImage(assets.images.player, -25, -20, 50, 40);
                 } else {
                      ctx.strokeStyle = '#f00';
@@ -1883,11 +1883,8 @@ class Player {
         }
         
         if (assets.images.player && assets.images.player.complete && assets.images.player.naturalWidth !== 0) {
-            if (isAutoPilot) {
-                ctx.filter = 'sepia(1) hue-rotate(-50deg) saturate(3)'; 
-            }
+            // フィルター削除
             ctx.drawImage(assets.images.player, -25, -20, 50, 40);
-            ctx.filter = 'none'; 
             
             ctx.lineWidth = 1;
             if (isAutoPilot) {
