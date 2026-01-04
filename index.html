@@ -1002,6 +1002,58 @@ let isAutoPilot = false;
 let gameStartTime = 0;
 let currentTimerText = "00:00.00";
 
+// --- ステージ重力（スクロール方向）制御 ---
+let stageAngle = 0; // 0: 右から左へ（標準）
+let stageAngleTarget = 0;
+let gravityChangeTimer = 0;
+
+function updateStageDirection() {
+    // 角度をスムーズに変化させる
+    if (Math.abs(stageAngleTarget - stageAngle) > 0.01) {
+        // 最短経路で回転
+        let diff = stageAngleTarget - stageAngle;
+        while(diff > Math.PI) diff -= Math.PI*2;
+        while(diff < -Math.PI) diff += Math.PI*2;
+        stageAngle += diff * 0.02;
+        
+        // 画面全体を少し回転させる演出（カメラが傾く）
+        // 実際には描画時に適用する
+    } else {
+        stageAngle = stageAngleTarget;
+    }
+
+    // ランダム切り替えタイマー
+    if (gameState === 'playing' && !isBossBattle) {
+        gravityChangeTimer++;
+        if (gravityChangeTimer > 1200) { // 約20秒ごと
+            gravityChangeTimer = 0;
+            const r = Math.random();
+            let label = "GRAVITY SHIFT";
+            
+            if (r < 0.3) {
+                stageAngleTarget = 0; // Standard
+                label = "GRAVITY: NORMAL";
+            } else if (r < 0.5) {
+                stageAngleTarget = Math.PI / 2; // Vertical (下から上へ背景が流れる＝上から敵)
+                label = "GRAVITY: VERTICAL";
+            } else if (r < 0.7) {
+                stageAngleTarget = Math.PI; // Reverse
+                label = "GRAVITY: REVERSE";
+            } else if (r < 0.9) {
+                stageAngleTarget = -Math.PI / 2; // Bottom Up
+                label = "GRAVITY: BOTTOM-UP";
+            } else {
+                stageAngleTarget = Math.random() * Math.PI * 2; // Chaos
+                label = "GRAVITY: CHAOS";
+            }
+            
+            createFloatingText(canvas.width/2 - 100, canvas.height/2, "WARNING", '#f00');
+            createFloatingText(canvas.width/2 - 100, canvas.height/2 + 30, label, '#ff0');
+            playSound('sePowerup');
+        }
+    }
+}
+
 const autoPilotBtn = document.getElementById('auto-pilot-btn');
 const examOverlay = document.getElementById('exam-overlay');
 const examStartup = document.getElementById('exam-startup');
@@ -1122,18 +1174,37 @@ class Star {
     constructor() {
         this.reset();
         this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height; // 初期位置もランダムに
     }
     reset() {
-        this.x = canvas.width;
-        this.y = Math.random() * canvas.height;
+        // 画面の外側のどこかから出現させる
+        // 簡易的に全方向対応：画面中心から十分遠い距離に配置
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.max(canvas.width, canvas.height); 
+        this.x = canvas.width/2 + Math.cos(angle) * dist;
+        this.y = canvas.height/2 + Math.sin(angle) * dist;
+        
         this.size = Math.random() * 2 + 0.5;
-        this.speed = isBossBattle ? 15 : Math.random() * 3 + 0.5;
+        this.baseSpeed = Math.random() * 3 + 0.5;
         this.color = `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.1})`;
     }
     update() {
-        this.speed = isBossBattle ? 10 : Math.random() * 3 + 0.5;
-        this.x -= this.speed;
-        if (this.x < 0) this.reset();
+        const speed = isBossBattle ? 10 : this.baseSpeed;
+        // stageAngle の逆方向に流れる
+        this.x -= Math.cos(stageAngle) * speed;
+        this.y -= Math.sin(stageAngle) * speed;
+        
+        // 画面外に出たらリセット（かなり大雑把な判定）
+        if (this.x < -100 || this.x > canvas.width + 100 || 
+            this.y < -100 || this.y > canvas.height + 100) {
+            // 流れてくる方向の逆側（上流）に再配置したい
+            // 簡易的に：画面内に入ってくるように再配置
+            // stageAngle方向の画面端あたりに配置
+            const dist = Math.max(canvas.width, canvas.height) / 2 + 50;
+            const spawnAngle = stageAngle + (Math.random() - 0.5); // 少しばらつかせる
+            this.x = canvas.width/2 + Math.cos(spawnAngle) * dist;
+            this.y = canvas.height/2 + Math.sin(spawnAngle) * dist;
+        }
     }
     draw() {
         ctx.fillStyle = this.color;
@@ -1390,12 +1461,26 @@ class PowerUp {
         this.baseY = y;
         this.markedForDeletion = false;
         this.angle = 0;
+        // スクロール方向に従うためのベクトル
+        this.vx = -Math.cos(stageAngle) * 2;
+        this.vy = -Math.sin(stageAngle) * 2;
     }
     update() {
-        this.x -= this.speedX;
+        // アイテムもステージ進行方向（の逆）へ流れる
+        this.vx = -Math.cos(stageAngle) * 2;
+        this.vy = -Math.sin(stageAngle) * 2;
+        this.x += this.vx;
+        this.y += this.vy;
+        
         this.angle += 0.1;
-        this.y = this.baseY + Math.sin(this.angle) * 30;
-        if (this.x < -this.width) this.markedForDeletion = true;
+        // 浮遊感
+        this.x += Math.cos(this.angle) * 0.5;
+        this.y += Math.sin(this.angle) * 0.5;
+
+        // 画面外判定（かなり広めに）
+        if (this.x < -100 || this.x > canvas.width + 100 || this.y < -100 || this.y > canvas.height + 100) {
+            this.markedForDeletion = true;
+        }
     }
     draw() {
         ctx.save();
@@ -2281,9 +2366,31 @@ class Enemy {
     constructor(presetType) {
         this.width = 30;
         this.height = 30;
-        this.x = canvas.width + this.width;
-        this.y = Math.random() * (canvas.height - 100) + 50;
+        this.time = 0;
         this.speedX = Math.random() * 3 + 2 + (difficultyMultiplier - 1);
+        
+        // 画面のどこから出現するかを stageAngle に基づいて決定
+        // 基本的に stageAngle の方向（敵が来る方向）の画面端から
+        const dist = Math.max(canvas.width, canvas.height) / 2 + 50;
+        // spawnAngle は stageAngle 付近からランダムにばらつかせる
+        // 例: stageAngle=0 (右から) なら、spawnAngle=0 付近
+        // しかし stageAngle は「背景が流れる方向」ではなく「敵が来る方向」として定義した方が楽か？
+        // Starクラスでは stageAngle の逆方向に流していた。つまり stageAngle は「進行方向（右へ進む＝背景は左へ）」
+        // ということは敵は stageAngle 方向（前方）からやってくる。
+        
+        // stageAngle = 0 (右へ進行) -> 敵は右(0)から出現し、左(PI)へ移動
+        // stageAngle = PI/2 (下へ進行) -> 敵は下(PI/2)から出現し、上(-PI/2)へ移動
+        
+        // 出現位置の角度範囲 (前方180度くらい)
+        const spawnAngleBase = stageAngle;
+        const spawnRange = Math.PI / 2; // ±90度
+        const randomAngle = spawnAngleBase + (Math.random() - 0.5) * spawnRange;
+        
+        // 画面中央からのオフセット
+        // ただし、単純な円形配置だと画面の隅まで届かないので、矩形上の位置にマッピングするのが理想だが
+        // 簡易的に遠くから出現させる
+        this.x = canvas.width/2 + Math.cos(randomAngle) * dist;
+        this.y = canvas.height/2 + Math.sin(randomAngle) * dist;
         
         if (presetType) {
             this.type = presetType;
@@ -2298,14 +2405,13 @@ class Enemy {
         this.hp = 1 + Math.floor(score / 2000);
         this.markedForDeletion = false;
         this.angle = 0;
-        this.time = 0;
 
         if (this.type === 'chaser') {
             this.color = '#f00';
             this.hp *= 2;
         } else if (this.type === 'sine') {
             this.color = '#0f0';
-            this.baseY = this.y;
+            this.baseY = 0; // ローカル座標用
             this.speedX = 3;
         } else if (this.type === 'shooter') {
             this.color = '#fa0';
@@ -2314,37 +2420,49 @@ class Enemy {
             this.hp *= 1.5;
         } else {
             this.color = '#f0f';
-            this.speedY = (Math.random() - 0.5) * 2;
+            this.speedY = (Math.random() - 0.5) * 2; // ローカル垂直移動
         }
+        
+        // 進行方向（プレイヤーに向かう、またはスクロールの逆）
+        // 基本は stageAngle の逆方向へ進む
+        this.moveAngle = stageAngle + Math.PI;
     }
 
     update() {
         this.time++;
         
-        // 回転制御
+        let vx = 0;
+        let vy = 0;
+        
+        // 基本的な移動ベクトル（スクロール逆方向）
+        const baseVx = Math.cos(this.moveAngle) * this.speedX;
+        const baseVy = Math.sin(this.moveAngle) * this.speedX;
+
         if (this.type === 'chaser' && player) {
              this.angle = Math.atan2(player.y - this.y, player.x - this.x);
-        } else if (this.type === 'sine') {
-             // サイン波の接線方向
-             const dx = -this.speedX;
-             const dy = Math.cos(this.time * 0.05) * 5; 
-             this.angle = Math.atan2(dy, dx);
-        } else {
-             // Basic, Shooterなどは左向き固定、または少し傾ける
-             this.angle = Math.PI; 
-        }
-
-        if (this.type === 'chaser') {
-            this.x -= this.speedX;
-            if (player.y > this.y) this.y += 1.5;
-            else this.y -= 1.5;
+             // Chaserは独自にプレイヤーを追う
+             const speed = this.speedX;
+             vx = Math.cos(this.angle) * speed;
+             vy = Math.sin(this.angle) * speed;
         } 
         else if (this.type === 'sine') {
-            this.x -= this.speedX;
-            this.y = this.baseY + Math.sin(this.time * 0.05) * 100;
+             // 進行方向(base) + 垂直方向(wave)
+             const waveAmp = 5;
+             const waveFreq = 0.05;
+             // 垂直ベクトル
+             const perpAngle = this.moveAngle + Math.PI/2;
+             const waveVal = Math.cos(this.time * waveFreq) * waveAmp;
+             
+             vx = baseVx + Math.cos(perpAngle) * waveVal;
+             vy = baseVy + Math.sin(perpAngle) * waveVal;
+             
+             this.angle = Math.atan2(vy, vx);
         }
         else if (this.type === 'shooter') {
-            this.x -= this.speedX;
+            vx = baseVx;
+            vy = baseVy;
+            this.angle = this.moveAngle; // 進行方向を向く
+            
             this.shootTimer++;
             if (this.shootTimer > 80) {
                 const angle = Math.atan2(player.y - this.y, player.x - this.x);
@@ -2353,12 +2471,32 @@ class Enemy {
             }
         }
         else { // basic
-            this.x -= this.speedX;
-            this.y += this.speedY;
-            if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+            // 垂直移動成分を加算
+            const perpAngle = this.moveAngle + Math.PI/2;
+            vx = baseVx + Math.cos(perpAngle) * this.speedY;
+            vy = baseVy + Math.sin(perpAngle) * this.speedY;
+            
+            // 画面端反射ロジックは全方位だと難しいので、
+            // 簡易的に垂直成分を反転させる判定を入れる？
+            // ここでは省略して突き進ませる
+            
+            this.angle = this.moveAngle;
         }
 
-        if (this.x < -this.width) this.markedForDeletion = true;
+        this.x += vx;
+        this.y += vy;
+
+        // 画面外削除判定（全方位対応）
+        // 画面中心からの距離で判定
+        const distFromCenter = Math.sqrt((this.x - canvas.width/2)**2 + (this.y - canvas.height/2)**2);
+        const limit = Math.max(canvas.width, canvas.height) / 2 + 200;
+        
+        // 生成直後は画面外にいるので、一度画面内に入ったフラグが必要かもだが、
+        // 単純に「生成位置より遠くへ行ったら消す」
+        // あるいは time > 100 かつ 画面外なら消す
+        if (this.time > 100 && distFromCenter > limit) {
+            this.markedForDeletion = true;
+        }
     }
 
     draw() {
@@ -2404,14 +2542,22 @@ class Boss {
     constructor() {
         this.width = 150;
         this.height = 150;
-        this.x = canvas.width + 200;
-        this.y = canvas.height / 2;
-        this.targetX = canvas.width / 2; // 画面中央まで来る
+        // ボス出現位置：進行方向の奥から
+        const dist = Math.max(canvas.width, canvas.height) / 2 + 300;
+        this.x = canvas.width/2 + Math.cos(stageAngle) * dist;
+        this.y = canvas.height/2 + Math.sin(stageAngle) * dist;
+        
+        this.targetX = canvas.width / 2;
+        this.targetY = canvas.height / 2;
+        
         this.hp = 2000 + (bossEncountered * 1000);
         this.maxHp = this.hp;
         this.state = 'enter';
-        this.dy = 2;
-        this.angle = Math.PI; // 初期は左向き
+        
+        // 移動用
+        this.angle = stageAngle + Math.PI; // プレイヤーの方を向く
+        this.moveAngle = stageAngle + Math.PI; // 画面中央へ向かう角度
+        
         this.timer = 0;
         this.attackTimer = 0;
         this.markedForDeletion = false;
@@ -2465,17 +2611,31 @@ class Boss {
         }
 
         if (this.state === 'enter') {
-            this.x -= 2;
-            if (this.x <= this.targetX) this.state = 'fight';
+            // 中央へ移動
+            const dx = this.targetX - this.x;
+            const dy = this.targetY - this.y;
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if (dist < 10) {
+                this.state = 'fight';
+            } else {
+                this.x += (dx/dist) * 2;
+                this.y += (dy/dist) * 2;
+            }
         } else {
             // 覚醒時は移動速度アップ
-            const moveSpeed = this.awakened ? this.dy * 1.5 : this.dy;
-            this.y += moveSpeed;
+            // 画面内を少しうろうろする（8の字っぽい動きなど）
+            const time = frameCount * 0.02;
+            const moveAmp = this.awakened ? 150 : 80;
+            // 基準位置（画面中央）を中心に動く
+            // stageAngleに対して垂直に動くと「立ちはだかる」感じになる
+            const perp = stageAngle + Math.PI/2;
             
-            // 少し左右にも動く
-            this.x += Math.sin(frameCount * 0.02) * (this.awakened ? 2 : 1);
+            const offsetX = Math.cos(perp) * Math.sin(time) * moveAmp;
+            const offsetY = Math.sin(perp) * Math.sin(time) * moveAmp;
             
-            if (this.y < 100 || this.y > canvas.height - 100) this.dy *= -1;
+            // ターゲット位置を更新
+            this.x = this.targetX + offsetX;
+            this.y = this.targetY + offsetY;
 
             this.attackTimer++;
             
@@ -2847,6 +3007,11 @@ function init() {
     isBossBattle = false;
     gameState = 'playing';
     gameStartTime = Date.now();
+    
+    // 初期化
+    stageAngle = 0;
+    stageAngleTarget = 0;
+    gravityChangeTimer = 0;
 
     animate();
 }
@@ -2878,6 +3043,10 @@ function startBossBattle() {
     isBossBattle = true;
     updateBGM(); // ボスBGMへ切り替え
 
+    // ボス戦開始時に強制的に横スクロールに戻す（戦いやすくするため）
+    stageAngleTarget = 0;
+    createFloatingText(canvas.width/2 - 100, canvas.height/2 + 50, "GRAVITY: STABILIZED", '#0ff');
+
     document.getElementById('warning-msg').style.display = 'block';
     setTimeout(() => {
         document.getElementById('warning-msg').style.display = 'none';
@@ -2899,23 +3068,37 @@ function animate() {
         (seconds < 10 ? "0" : "") + seconds + "." + 
         (centiseconds < 10 ? "0" : "") + centiseconds;
     document.getElementById('timer-display').innerText = currentTimerText;
+    
+    // ステージ重力方向更新
+    updateStageDirection();
 
     // 背景クリア処理
     if (assets.images.background && assets.images.background.complete && assets.images.background.naturalWidth !== 0) {
+         ctx.save();
+         // 背景画像も少し回転させると酔うかもしれないが、演出としてはアリ
+         // ここでは固定描画にしておく
          ctx.drawImage(assets.images.background, 0, 0, canvas.width, canvas.height);
          ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
          ctx.fillRect(0, 0, canvas.width, canvas.height);
+         ctx.restore();
     } else {
          ctx.fillStyle = '#050505';
          ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
 
     ctx.save();
+    
+    // 画面揺れ
     if (screenshake > 0) {
         ctx.translate((Math.random() - 0.5) * screenshake, (Math.random() - 0.5) * screenshake);
         screenshake *= 0.9;
         if (screenshake < 0.5) screenshake = 0;
     }
+    
+    // ステージ全体を回転させる場合（オプション）
+    // ctx.translate(canvas.width/2, canvas.height/2);
+    // ctx.rotate(stageAngle * 0.1); // 少しだけ傾けるとか
+    // ctx.translate(-canvas.width/2, -canvas.height/2);
 
     stars.forEach(star => { star.update(); star.draw(); });
 
